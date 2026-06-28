@@ -79,7 +79,7 @@ class MigrationReporter
 
         $failedRecords = MigrationRecord::whereHas('import', function ($q) use ($project) {
             $q->where('migration_project_id', $project->id);
-        }->where('status', MigrationRecord::STATUS_FAILED)->get();
+        })->where('status', MigrationRecord::STATUS_FAILED)->get();
 
         $errorSummary = [];
         foreach ($failedRecords as $record) {

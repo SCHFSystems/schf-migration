@@ -4,10 +4,12 @@ import {
   useMigrationProject,
   usePrepareMigration,
   useValidateMigration,
-  useMigrateMigration,
   useRollbackMigration,
+  useBundlePreview,
+  useExportBundle,
 } from '../../hooks/useMigration';
 import WorkflowStepper from '../../components/migration/WorkflowStepper';
+import migrationApi from '../../services/migrationApi';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-800',
@@ -28,10 +30,11 @@ export default function ProjectDetail() {
   const projectId = parseInt(id || '0', 10);
 
   const { data: project, isLoading } = useMigrationProject(projectId);
+  const { data: bundlePreview } = useBundlePreview(projectId);
   const prepareMutation = usePrepareMigration(projectId);
   const validateMutation = useValidateMigration(projectId);
-  const migrateMutation = useMigrateMigration(projectId);
   const rollbackMutation = useRollbackMigration(projectId);
+  const exportBundleMutation = useExportBundle(projectId);
 
   if (isLoading) {
     return (
@@ -60,9 +63,12 @@ export default function ProjectDetail() {
       case 'validate':
         await validateMutation.mutateAsync();
         break;
-      case 'migrate':
-        if (confirm('Are you sure you want to start the migration? This will modify data in SCHF Core.')) {
-          await migrateMutation.mutateAsync();
+      case 'export_bundle':
+        if (confirm('Export a Migration Bundle? This will not modify SCHF Core.')) {
+          const result = await exportBundleMutation.mutateAsync();
+          if (result.data.success) {
+            window.location.href = migrationApi.bundle.downloadUrl(projectId);
+          }
         }
         break;
       case 'rollback':
@@ -147,7 +153,7 @@ export default function ProjectDetail() {
                 {prepareMutation.isPending ? 'Preparing...' : 'Start Preparation'}
               </button>
             )}
-            {data.status === 'preparing' && (
+            {data.status === 'validating' && (
               <button
                 onClick={() => handleAction('validate')}
                 disabled={validateMutation.isPending}
@@ -156,7 +162,7 @@ export default function ProjectDetail() {
                 {validateMutation.isPending ? 'Validating...' : 'Validate Data'}
               </button>
             )}
-            {data.status === 'validating' && (
+            {data.status === 'previewing' && (
               <button
                 onClick={() => navigate(`/migration/projects/${projectId}/preview`)}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
@@ -166,11 +172,11 @@ export default function ProjectDetail() {
             )}
             {data.status === 'previewing' && (
               <button
-                onClick={() => handleAction('migrate')}
-                disabled={migrateMutation.isPending}
+                onClick={() => handleAction('export_bundle')}
+                disabled={exportBundleMutation.isPending}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
-                {migrateMutation.isPending ? 'Migrating...' : 'Start Migration'}
+                {exportBundleMutation.isPending ? 'Exporting...' : 'Export Bundle'}
               </button>
             )}
             {['completed', 'failed'].includes(data.status) && (
@@ -198,6 +204,36 @@ export default function ProjectDetail() {
             )}
           </div>
         </div>
+
+        {bundlePreview?.data && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Migration Bundle Preview</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Bundle Version</p>
+                <p className="font-semibold text-gray-900">{bundlePreview.data.bundle_version}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Source Tables</p>
+                <p className="font-semibold text-gray-900">{bundlePreview.data.source.tables}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Bundle Files</p>
+                <p className="font-semibold text-gray-900">{bundlePreview.data.files.length}</p>
+              </div>
+            </div>
+            {bundlePreview.data.warnings.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-yellow-800 mb-2">Warnings</p>
+                <ul className="text-sm text-yellow-700 space-y-1">
+                  {bundlePreview.data.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {data.imports && data.imports.length > 0 && (
           <div className="bg-white rounded-lg shadow">

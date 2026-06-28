@@ -94,6 +94,26 @@ export function useMigrateMigration(projectId: number) {
   });
 }
 
+export function useBundlePreview(projectId: number) {
+  return useQuery({
+    queryKey: ['migration-bundle-preview', projectId],
+    queryFn: () => migrationApi.bundle.preview(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useExportBundle(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => migrationApi.bundle.export(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['migration-bundle-preview', projectId] });
+    },
+  });
+}
+
 export function useRollbackMigration(projectId: number) {
   const queryClient = useQueryClient();
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AiConfigController;
+use App\Http\Controllers\MigrationBundleController;
 use App\Http\Controllers\MigrationPreviewController;
 use App\Http\Controllers\MigrationProjectController;
 use App\Http\Controllers\MigrationReportController;
@@ -17,6 +18,12 @@ Route::prefix('api')->group(function () {
         Route::post('/migrate', [MigrationWorkflowController::class, 'migrate']);
         Route::post('/rollback', [MigrationWorkflowController::class, 'rollback']);
         Route::get('/report', [MigrationWorkflowController::class, 'report']);
+
+        Route::prefix('bundle')->group(function () {
+            Route::get('/preview', [MigrationBundleController::class, 'preview']);
+            Route::post('/export', [MigrationBundleController::class, 'export']);
+            Route::get('/download', [MigrationBundleController::class, 'download']);
+        });
 
         Route::prefix('ai-config')->group(function () {
             Route::get('/', [AiConfigController::class, 'index']);

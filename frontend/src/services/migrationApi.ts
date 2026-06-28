@@ -183,6 +183,34 @@ export interface PreviewData {
   total_records: number;
 }
 
+export interface BundlePreview {
+  success: boolean;
+  bundle_version: string;
+  sdk_version: string;
+  core_min_version: string;
+  source: {
+    type: string;
+    tables: number;
+    inventory_hash: string;
+  };
+  files: Array<{
+    path: string;
+    schema: string;
+    required: boolean;
+    records: number;
+  }>;
+  warnings: string[];
+}
+
+export interface BundleExportResult {
+  success: boolean;
+  bundle_path?: string;
+  bundle_sha256?: string;
+  download_url?: string;
+  manifest?: Record<string, any>;
+  error?: string;
+}
+
 export const migrationApi = {
   projects: {
     list: (params?: Record<string, any>) =>
@@ -235,6 +263,14 @@ export const migrationApi = {
       api.get<MigrationReport>(`/projects/${projectId}/reports/${reportId}`),
     latest: (projectId: number) =>
       api.get<MigrationReport>(`/projects/${projectId}/reports/latest`),
+  },
+  bundle: {
+    preview: (projectId: number) =>
+      api.get<BundlePreview>(`/projects/${projectId}/bundle/preview`),
+    export: (projectId: number) =>
+      api.post<BundleExportResult>(`/projects/${projectId}/bundle/export`),
+    downloadUrl: (projectId: number) =>
+      `${API_BASE_URL}/projects/${projectId}/bundle/download`,
   },
 };
 

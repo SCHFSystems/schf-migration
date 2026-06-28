@@ -1,6 +1,6 @@
 # SCHF Migration
 
-Standalone Laravel + React application for migrating data from legacy systems into SCHF Core.
+Standalone Laravel + React framework for generating universal Migration Bundles accepted by SCHF Core.
 
 ## Overview
 
@@ -11,14 +11,16 @@ SCHF Migration handles the complete data migration workflow:
 3. **Analyze** data with AI-powered field mapping suggestions
 4. **Validate** data before import
 5. **Preview** transformed data
-6. **Import** into SCHF Core with full rollback support
-7. **Report** migration results with hash verification
+6. **Export** a universal Migration Bundle with manifest, checksums, and report
+7. **Import** the Bundle in SCHF Core using the Core import module
+
+SCHF Migration never writes directly to the SCHF Core database.
 
 ## Architecture
 
 ### Backend (Laravel)
 - **Models**: MigrationProject, MigrationImport, MigrationRecord, MigrationReport, MigrationApiKey, AiConfig
-- **Services**: MigrationEngine, DataNormalizer, AiNormalizer, MigrationValidator, MigrationRollback, MigrationReporter, CoreApiClient
+- **Services**: MigrationEngine, DataNormalizer, AiNormalizer, MigrationValidator, MigrationRollback, MigrationReporter, MigrationBundleExporter, CoreApiClient
 - **Source Detectors**: FirebirdDetector, MysqlDetector, ZipDetector (implements DatabaseDetectorInterface)
 
 ### Frontend (React + Vite + Tailwind)
@@ -106,9 +108,12 @@ npm run dev -- --port=3001
 | POST | /api/projects/{id}/prepare | Start source detection |
 | POST | /api/projects/{id}/validate | Validate data |
 | GET | /api/projects/{id}/preview | Preview data |
-| POST | /api/projects/{id}/migrate | Start migration |
+| POST | /api/projects/{id}/migrate | Legacy internal normalization flow (does not write to Core) |
 | POST | /api/projects/{id}/rollback | Rollback migration |
 | GET | /api/projects/{id}/report | Get migration report |
+| GET | /api/projects/{id}/bundle/preview | Preview Migration Bundle contents |
+| POST | /api/projects/{id}/bundle/export | Export migration-package.zip |
+| GET | /api/projects/{id}/bundle/download | Download latest exported Bundle |
 | POST | /api/projects/{id}/ai/analyze | AI field analysis |
 | GET/POST | /api/projects/{id}/ai-config | AI configuration |
 | GET/POST | /api/projects/{id}/api-keys | API keys |
@@ -123,6 +128,8 @@ npm run dev -- --port=3001
 - **ZIP/CSV**: Auto-detect CSV files in ZIP archives
 
 ## AI Integration
+
+AI only supports the operator. It may identify tables, propose mappings, normalize names, and explain legacy structures. It never writes to SCHF Core and never bypasses the deterministic export pipeline.
 
 Configure AI providers for intelligent field mapping:
 

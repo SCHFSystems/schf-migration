@@ -27,7 +27,7 @@ export default function ProjectCreate() {
     host: 'localhost',
     port: '3050',
     database: '',
-    username: 'SYSDBA',
+    username: '',
     password: '',
     path: '',
   });

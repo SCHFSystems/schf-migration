@@ -12,8 +12,7 @@ class FirebirdDetector implements DatabaseDetectorInterface
             $host = $config['host'] ?? 'localhost';
             $port = $config['port'] ?? 3050;
             $database = $config['database'] ?? '';
-            $username = $config['username'] ?? 'SYSDBA';
-            $password = $config['password'] ?? 'masterkey';
+            [$username, $password] = $this->credentials($config);
 
             $dsn = "{$host}/{$port}:{$database}";
 
@@ -47,7 +46,8 @@ class FirebirdDetector implements DatabaseDetectorInterface
 
         try {
             $dsn = $this->buildDsn($config);
-            $connection = ibase_connect($dsn, $config['username'] ?? 'SYSDBA', $config['password'] ?? 'masterkey');
+            [$username, $password] = $this->credentials($config);
+            $connection = ibase_connect($dsn, $username, $password);
 
             if (! $connection) {
                 return ['error' => 'Could not connect to Firebird database'];
@@ -91,7 +91,8 @@ class FirebirdDetector implements DatabaseDetectorInterface
     {
         try {
             $dsn = $this->buildDsn($config);
-            $connection = ibase_connect($dsn, $config['username'] ?? 'SYSDBA', $config['password'] ?? 'masterkey');
+            [$username, $password] = $this->credentials($config);
+            $connection = ibase_connect($dsn, $username, $password);
 
             if (! $connection) {
                 return ['error' => 'Could not connect to Firebird database'];
@@ -119,7 +120,8 @@ class FirebirdDetector implements DatabaseDetectorInterface
     {
         try {
             $dsn = $this->buildDsn($config);
-            $connection = ibase_connect($dsn, $config['username'] ?? 'SYSDBA', $config['password'] ?? 'masterkey');
+            [$username, $password] = $this->credentials($config);
+            $connection = ibase_connect($dsn, $username, $password);
 
             if (! $connection) {
                 return 0;
@@ -152,6 +154,15 @@ class FirebirdDetector implements DatabaseDetectorInterface
         $database = $config['database'] ?? '';
 
         return "{$host}/{$port}:{$database}";
+    }
+
+    private function credentials(array $config): array
+    {
+        if (empty($config['username']) || empty($config['password'])) {
+            throw new \InvalidArgumentException('Firebird credentials must be provided in the local source configuration.');
+        }
+
+        return [$config['username'], $config['password']];
     }
 
     private function getColumns($connection, string $tableName): array

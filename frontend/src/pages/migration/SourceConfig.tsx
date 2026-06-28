@@ -129,7 +129,7 @@ export default function SourceConfig() {
                   </label>
                   <input
                     type="text"
-                    value={currentConfig.username || 'SYSDBA'}
+                    value={currentConfig.username || ''}
                     onChange={(e) => setConfig({ ...config, username: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
