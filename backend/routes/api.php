@@ -2,10 +2,13 @@
 
 use App\Http\Controllers\AiConfigController;
 use App\Http\Controllers\MigrationBundleController;
+use App\Http\Controllers\MigrationInventoryController;
 use App\Http\Controllers\MigrationPreviewController;
 use App\Http\Controllers\MigrationProjectController;
 use App\Http\Controllers\MigrationReportController;
 use App\Http\Controllers\MigrationWorkflowController;
+use App\Http\Controllers\NormalizationPreviewController;
+use App\Http\Controllers\PreviewGenerateController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api')->group(function () {
@@ -47,7 +50,17 @@ Route::prefix('api')->group(function () {
         });
 
         Route::prefix('inventory')->group(function () {
-            Route::post('/generate', [App\Http\Controllers\MigrationInventoryController::class, 'generate']);
+            Route::post('/generate', [MigrationInventoryController::class, 'generate']);
+        });
+
+        Route::prefix('normalization')->group(function () {
+            Route::get('/preview', [NormalizationPreviewController::class, 'preview']);
+            Route::post('/run', [NormalizationPreviewController::class, 'normalize']);
+        });
+
+        Route::prefix('preview')->group(function () {
+            Route::post('/generate', [PreviewGenerateController::class, 'generate']);
+            Route::get('/result', [PreviewGenerateController::class, 'show']);
         });
     });
 });

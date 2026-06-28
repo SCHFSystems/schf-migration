@@ -8,6 +8,7 @@ import {
   useBundlePreview,
   useExportBundle,
   useGenerateInventory,
+  useGeneratePreview,
 } from '../../hooks/useMigration';
 import WorkflowStepper from '../../components/migration/WorkflowStepper';
 import migrationApi from '../../services/migrationApi';
@@ -37,6 +38,7 @@ export default function ProjectDetail() {
   const rollbackMutation = useRollbackMigration(projectId);
   const exportBundleMutation = useExportBundle(projectId);
   const inventoryMutation = useGenerateInventory(projectId);
+  const generatePreviewMutation = useGeneratePreview(projectId);
 
   if (isLoading) {
     return (
@@ -170,6 +172,14 @@ export default function ProjectDetail() {
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 Preview Data
+              </button>
+            )}
+            {data.status === 'previewing' && (
+              <button
+                onClick={() => navigate(`/migration/projects/${projectId}/migration-preview`)}
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
+              >
+                Migration Preview
               </button>
             )}
             {data.status === 'previewing' && (

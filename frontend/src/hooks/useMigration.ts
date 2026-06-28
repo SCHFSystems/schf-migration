@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { migrationApi, MigrationProject, ValidationResult, PreviewData } from '../services/migrationApi';
+import { migrationApi, MigrationProject, ValidationResult, PreviewData, MigrationPreview } from '../services/migrationApi';
 
 export function useMigrationProjects(params?: Record<string, any>) {
   return useQuery({
@@ -173,5 +173,25 @@ export function useGenerateInventory(projectId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
     },
+  });
+}
+
+export function useGeneratePreview(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => migrationApi.previewGenerate.generate(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['migration-preview-result', projectId] });
+    },
+  });
+}
+
+export function usePreviewResult(projectId: number) {
+  return useQuery({
+    queryKey: ['migration-preview-result', projectId],
+    queryFn: () => migrationApi.previewGenerate.getResult(projectId),
+    enabled: !!projectId,
   });
 }

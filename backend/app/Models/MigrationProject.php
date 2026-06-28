@@ -73,6 +73,16 @@ class MigrationProject extends Model
         return $this->hasMany(MigrationApiKey::class);
     }
 
+    public function previews(): HasMany
+    {
+        return $this->hasMany(MigrationPreview::class);
+    }
+
+    public function latestPreview(): HasOne
+    {
+        return $this->hasOne(MigrationPreview::class)->latestOfMany();
+    }
+
     public function latestReport(): HasOne
     {
         return $this->hasOne(MigrationReport::class)->latestOfMany();

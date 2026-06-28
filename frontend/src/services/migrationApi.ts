@@ -230,6 +230,55 @@ export interface Inventory {
   };
 }
 
+export interface MigrationPreview {
+  project_id: number;
+  status: 'ready' | 'blocked';
+  ready_for_bundle: boolean;
+  summary: {
+    total_records: number;
+    valid_records: number;
+    warning_count: number;
+    error_count: number;
+    ignored_count: number;
+    historical_count: number;
+  };
+  entities: Record<string, {
+    total: number;
+    valid: number;
+    warnings: number;
+    errors: number;
+    ignored: number;
+    historical: number;
+  }>;
+  warnings: Array<{
+    type: string;
+    entity: string;
+    external_id: string;
+    field: string;
+    message: string;
+    value: any;
+  }>;
+  errors: Array<{
+    type: string;
+    entity: string;
+    external_id: string;
+    field: string;
+    message: string;
+    value: any;
+  }>;
+  ignored: Array<{
+    entity: string;
+    external_id: string;
+    reason: string;
+  }>;
+  historical: Array<{
+    entity: string;
+    external_id: string;
+    reason: string;
+  }>;
+  generated_at: string;
+}
+
 export const migrationApi = {
   projects: {
     list: (params?: Record<string, any>) =>
@@ -294,6 +343,12 @@ export const migrationApi = {
   inventory: {
     generate: (projectId: number) =>
       api.post<Inventory>(`/projects/${projectId}/inventory/generate`),
+  },
+  previewGenerate: {
+    generate: (projectId: number) =>
+      api.post<MigrationPreview>(`/projects/${projectId}/preview/generate`),
+    getResult: (projectId: number) =>
+      api.get<MigrationPreview>(`/projects/${projectId}/preview/result`),
   },
 };
 
