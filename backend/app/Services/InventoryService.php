@@ -64,7 +64,7 @@ class InventoryService
         }
 
         return [
-            'generated_at' => now()->toIso8601String(),
+            'generated_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             'driver'       => $connector->getDriverName(),
             'tables'       => $tables,
             'summary'      => [
