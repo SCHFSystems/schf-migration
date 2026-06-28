@@ -6,6 +6,8 @@ use App\Models\MigrationImport;
 use App\Models\MigrationProject;
 use App\Models\MigrationRecord;
 use App\Models\MigrationReport;
+use App\Services\ConnectorFactory;
+use App\Services\InventoryService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -17,6 +19,8 @@ class MigrationEngine
         private MigrationRollback $rollback,
         private MigrationReporter $reporter,
         private CoreApiClient $coreClient,
+        private ConnectorFactory $connectorFactory,
+        private InventoryService $inventoryService,
     ) {}
 
     public function prepare(MigrationProject $project): array
@@ -36,9 +40,26 @@ class MigrationEngine
                 return ['success' => false, 'error' => $structure['error']];
             }
 
+            // Generate inventory using the new connector architecture
+            $inventory = null;
+            try {
+                $connector = $this->connectorFactory->make(
+                    $project->source_type,
+                    $project->source_config,
+                );
+                $inventory = $this->inventoryService->generate($connector);
+                $connector->disconnect();
+            } catch (\Throwable $e) {
+                Log::warning('Inventory generation failed (non-fatal)', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $project->update([
                 'source_config' => array_merge($project->source_config ?? [], [
                     'detected_structure' => $structure,
+                    'inventory' => $inventory,
                 ]),
                 'status' => MigrationProject::STATUS_VALIDATING,
             ]);
@@ -46,7 +67,8 @@ class MigrationEngine
             return [
                 'success' => true,
                 'structure' => $structure,
-                'message' => 'Source structure detected successfully',
+                'inventory' => $inventory,
+                'message' => 'Source structure detected and inventory generated',
             ];
         } catch (\Exception $e) {
             Log::error('Migration prepare failed', [

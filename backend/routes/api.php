@@ -45,5 +45,9 @@ Route::prefix('api')->group(function () {
             Route::get('/latest', [MigrationReportController::class, 'latest']);
             Route::get('/{report}', [MigrationReportController::class, 'show']);
         });
+
+        Route::prefix('inventory')->group(function () {
+            Route::post('/generate', [App\Http\Controllers\MigrationInventoryController::class, 'generate']);
+        });
     });
 });

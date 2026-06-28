@@ -211,6 +211,25 @@ export interface BundleExportResult {
   error?: string;
 }
 
+export interface Inventory {
+  generated_at: string;
+  driver: string;
+  tables: Array<{
+    name: string;
+    row_count: number;
+    columns: Record<string, { type: string; nullable: boolean; default: any }>;
+    column_names: string[];
+    primary_keys: string[];
+    foreign_keys: Record<string, string>;
+    sample: Record<string, any>[];
+  }>;
+  summary: {
+    total_tables: number;
+    total_rows: number;
+    total_columns: number;
+  };
+}
+
 export const migrationApi = {
   projects: {
     list: (params?: Record<string, any>) =>
@@ -271,6 +290,10 @@ export const migrationApi = {
       api.post<BundleExportResult>(`/projects/${projectId}/bundle/export`),
     downloadUrl: (projectId: number) =>
       `${API_BASE_URL}/projects/${projectId}/bundle/download`,
+  },
+  inventory: {
+    generate: (projectId: number) =>
+      api.post<Inventory>(`/projects/${projectId}/inventory/generate`),
   },
 };
 

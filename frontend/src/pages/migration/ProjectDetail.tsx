@@ -7,6 +7,7 @@ import {
   useRollbackMigration,
   useBundlePreview,
   useExportBundle,
+  useGenerateInventory,
 } from '../../hooks/useMigration';
 import WorkflowStepper from '../../components/migration/WorkflowStepper';
 import migrationApi from '../../services/migrationApi';
@@ -35,6 +36,7 @@ export default function ProjectDetail() {
   const validateMutation = useValidateMigration(projectId);
   const rollbackMutation = useRollbackMigration(projectId);
   const exportBundleMutation = useExportBundle(projectId);
+  const inventoryMutation = useGenerateInventory(projectId);
 
   if (isLoading) {
     return (
@@ -172,6 +174,15 @@ export default function ProjectDetail() {
             )}
             {data.status === 'previewing' && (
               <button
+                onClick={() => inventoryMutation.mutateAsync()}
+                disabled={inventoryMutation.isPending}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
+              >
+                {inventoryMutation.isPending ? 'Generating...' : 'Generate Inventory'}
+              </button>
+            )}
+            {data.status === 'previewing' && (
+              <button
                 onClick={() => handleAction('export_bundle')}
                 disabled={exportBundleMutation.isPending}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
@@ -232,6 +243,50 @@ export default function ProjectDetail() {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {inventoryMutation.data?.data && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Database Inventory</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-500">Tables</p>
+                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_tables}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total Rows</p>
+                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_rows.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Columns</p>
+                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_columns}</p>
+              </div>
+            </div>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Table</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rows</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Columns</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PK</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">FK</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {inventoryMutation.data.data.tables.map((table: any) => (
+                  <tr key={table.name}>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{table.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{table.row_count.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{Object.keys(table.columns).length}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{table.primary_keys?.join(', ') || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {Object.keys(table.foreign_keys || {}).join(', ') || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 

@@ -1,0 +1,39 @@
+{
+    "name": "joao-aschenbrenner/schf-migration",
+    "description": "SCHF Migration Framework — pipeline universal de migracao de dados",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^10.0",
+        "joao-aschenbrenner/schf-connectors": "@dev",
+        "joao-aschenbrenner/schf-sdk": "@dev"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "backend/app/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../schf-connectors",
+            "options": { "symlink": false }
+        },
+        {
+            "type": "path",
+            "url": "../schf-sdk",
+            "options": { "symlink": false }
+        }
+    ],
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    }
+}

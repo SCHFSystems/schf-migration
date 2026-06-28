@@ -164,3 +164,14 @@ export function useTestConnection(projectId: number) {
     mutationFn: () => migrationApi.preview.testConnection(projectId),
   });
 }
+
+export function useGenerateInventory(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => migrationApi.inventory.generate(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+    },
+  });
+}
