@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\MigrationApiKey;
 use App\Models\MigrationProject;
+use App\Services\SecretManager;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -13,10 +13,13 @@ class CoreApiClient
 
     private string $apiKey;
 
+    private SecretManager $secretManager;
+
     public function __construct()
     {
         $this->baseUrl = rtrim(config('services.schf_core.url', 'http://localhost:8000'), '/');
         $this->apiKey = config('services.schf_core.api_key', '');
+        $this->secretManager = new SecretManager();
     }
 
     public function setProject(MigrationProject $project): self
@@ -24,7 +27,7 @@ class CoreApiClient
         $key = $project->apiKeys()->where('is_active', true)->first();
 
         if ($key) {
-            $this->apiKey = $key->key;
+            $this->apiKey = $this->secretManager->decrypt($key->key) ?: $key->key;
             $key->recordUsage();
         }
 

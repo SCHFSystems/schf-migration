@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiConfig;
-use App\Models\MigrationApiKey;
 use App\Models\MigrationProject;
 use App\Services\AiNormalizer;
+use App\Services\SecretManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -14,6 +14,7 @@ class AiConfigController extends Controller
 {
     public function __construct(
         private AiNormalizer $aiNormalizer,
+        private SecretManager $secretManager,
     ) {}
 
     public function index(MigrationProject $project): JsonResponse
@@ -44,7 +45,7 @@ class AiConfigController extends Controller
         $config = AiConfig::create([
             'migration_project_id' => $project->id,
             'provider' => $request->input('provider'),
-            'api_key_encrypted' => $request->input('api_key'),
+            'api_key_encrypted' => $this->secretManager->encrypt($request->input('api_key')),
             'model' => $request->input('model') ?? AiConfig::DEFAULT_MODELS[$request->input('provider')],
             'temperature' => $request->input('temperature', 0.3),
             'max_tokens' => $request->input('max_tokens', 4096),
@@ -87,7 +88,7 @@ class AiConfigController extends Controller
         $data = $validator->validated();
 
         if (isset($data['api_key'])) {
-            $data['api_key_encrypted'] = $data['api_key'];
+            $data['api_key_encrypted'] = $this->secretManager->encrypt($data['api_key']);
             unset($data['api_key']);
         }
 

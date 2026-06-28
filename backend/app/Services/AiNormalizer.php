@@ -4,11 +4,19 @@ namespace App\Services;
 
 use App\Models\AiConfig;
 use App\Models\MigrationProject;
+use App\Services\SecretManager;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AiNormalizer
 {
+    private SecretManager $secretManager;
+
+    public function __construct()
+    {
+        $this->secretManager = new SecretManager();
+    }
+
     private array $providerEndpoints = [
         'openai' => 'https://api.openai.com/v1/chat/completions',
         'nvidia' => 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -105,8 +113,10 @@ class AiNormalizer
             $endpoint = data_get($config->toArray(), 'custom_endpoint', '');
         }
 
+        $apiKey = $this->secretManager->decrypt($config->api_key_encrypted);
+
         $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $config->api_key_encrypted,
+            'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         ])->timeout(60)->post($endpoint, [
             'model' => $config->model,
