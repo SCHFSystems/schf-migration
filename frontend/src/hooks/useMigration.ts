@@ -28,6 +28,18 @@ export function useCreateMigrationProject() {
   });
 }
 
+export function useCreateSyntheticProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (scenario: 'clean' | 'warnings' | 'blocked' = 'clean') =>
+      migrationApi.projects.createSynthetic(scenario),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-projects'] });
+    },
+  });
+}
+
 export function useUpdateMigrationProject() {
   const queryClient = useQueryClient();
 
@@ -172,6 +184,54 @@ export function useGenerateInventory(projectId: number) {
     mutationFn: () => migrationApi.inventory.generate(projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+    },
+  });
+}
+
+export function useRunNormalization(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => migrationApi.normalization.run(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['migration-normalization', projectId] });
+    },
+  });
+}
+
+export function useRunQuality(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => migrationApi.quality.run(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['migration-quality', projectId] });
+    },
+  });
+}
+
+export function useRunSyntheticPipeline(projectId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const inventory = await migrationApi.inventory.generate(projectId);
+      const normalization = await migrationApi.normalization.run(projectId);
+      const quality = await migrationApi.quality.run(projectId);
+      const preview = await migrationApi.previewGenerate.generate(projectId);
+
+      return {
+        inventory: inventory.data,
+        normalization: normalization.data,
+        quality: quality.data,
+        preview: preview.data,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['migration-project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['migration-preview-result', projectId] });
     },
   });
 }

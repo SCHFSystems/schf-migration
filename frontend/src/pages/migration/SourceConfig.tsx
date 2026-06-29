@@ -41,6 +41,11 @@ export default function SourceConfig() {
   };
 
   const handleTestConnection = async () => {
+    if (data.source_type === 'synthetic') {
+      alert('Synthetic source does not require a connection test.');
+      return;
+    }
+
     const result = await testConnectionMutation.mutateAsync();
     if (result.data.success) {
       alert('Connection successful!');
@@ -61,12 +66,30 @@ export default function SourceConfig() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Source Configuration</h1>
           <p className="mt-1 text-gray-600">
-            Configure the connection to your {data.source_type.replace('_', ' ')} data source
+            Configure the {data.source_type.replace('_', ' ')} data source
           </p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 space-y-6">
-          {data.source_type === 'zip' ? (
+          {data.source_type === 'synthetic' ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Synthetic Scenario
+              </label>
+              <select
+                value={currentConfig.scenario || 'clean'}
+                onChange={(e) => setConfig({ ...config, scenario: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="clean">Clean</option>
+                <option value="warnings">Warnings</option>
+                <option value="blocked">Blocked</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                This local mode generates controlled fake records and never connects to Firebird or real data.
+              </p>
+            </div>
+          ) : data.source_type === 'zip' ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 ZIP File Path *
@@ -152,10 +175,10 @@ export default function SourceConfig() {
           <div className="flex justify-between pt-4">
             <button
               onClick={handleTestConnection}
-              disabled={testConnectionMutation.isPending}
+              disabled={data.source_type === 'synthetic' || testConnectionMutation.isPending}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              {testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
+              {data.source_type === 'synthetic' ? 'No Connection Needed' : testConnectionMutation.isPending ? 'Testing...' : 'Test Connection'}
             </button>
             <div className="flex gap-3">
               <button

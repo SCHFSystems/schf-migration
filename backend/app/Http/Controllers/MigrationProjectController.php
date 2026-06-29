@@ -49,6 +49,12 @@ class MigrationProjectController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if ($this->syntheticOnly() && $request->input('source_type') !== 'synthetic') {
+            return response()->json([
+                'error' => 'Real connectors are disabled in synthetic-only mode',
+            ], 422);
+        }
+
         $project = MigrationProject::create([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
@@ -57,7 +63,7 @@ class MigrationProjectController extends Controller
             'status' => MigrationProject::STATUS_DRAFT,
             'data_cutoff_date' => $request->input('data_cutoff_date'),
             'organization_id' => $request->input('organization_id'),
-            'created_by' => $request->user()->id ?? null,
+            'created_by' => $request->user()?->id,
         ]);
 
         return response()->json($project, 201);
@@ -90,6 +96,12 @@ class MigrationProjectController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if ($this->syntheticOnly() && $request->input('source_type', $project->source_type) !== 'synthetic') {
+            return response()->json([
+                'error' => 'Real connectors are disabled in synthetic-only mode',
+            ], 422);
+        }
+
         $project->update($validator->validated());
 
         return response()->json($project);
@@ -106,5 +118,10 @@ class MigrationProjectController extends Controller
         $project->delete();
 
         return response()->json(['message' => 'Project deleted successfully']);
+    }
+
+    private function syntheticOnly(): bool
+    {
+        return filter_var(env('MIGRATION_SYNTHETIC_ONLY', true), FILTER_VALIDATE_BOOLEAN);
     }
 }

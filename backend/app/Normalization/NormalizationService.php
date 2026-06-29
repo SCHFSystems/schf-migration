@@ -95,8 +95,10 @@ class NormalizationService
                 legal_name:  $organization['legal_name'] ?? null,
             )] : [],
             suppliers:  $results['suppliers'] ?? [],
+            accounts:   $results['accounts'] ?? [],
             payables:   $results['payables'] ?? [],
             categories: $results['categories'] ?? [],
+            expenses:   $results['expenses'] ?? [],
             issues:     $issues,
             summary:    $summary,
         );
@@ -159,6 +161,7 @@ class NormalizationService
             'total_organizations' => count($results['organizations'] ?? []),
             'total_suppliers'     => count($results['suppliers'] ?? []),
             'total_categories'    => count($results['categories'] ?? []),
+            'total_accounts'      => count($results['accounts'] ?? []),
             'total_payables'      => count($results['payables'] ?? []),
             'total_expenses'      => count($results['expenses'] ?? []),
             'total_issues'        => count($issues),

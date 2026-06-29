@@ -1,40 +1,42 @@
-version: '3.8'
-
 services:
-  backend:
+  migration-backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: schf-migration-backend
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: migration-backend
     restart: unless-stopped
     ports:
       - "8001:80"
     volumes:
-      - ./backend:/var/www/html
-      - ./storage:/var/www/html/storage
+      - ./:/var/www/html
+      - migration_backend_vendor:/var/www/html/vendor
     environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
-      - APP_KEY=${APP_KEY}
-      - APP_URL=http://localhost:8001
-      - DB_CONNECTION=${DB_CONNECTION:-sqlite}
-      - DB_HOST=${DB_HOST:-localhost}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_DATABASE=${DB_DATABASE:-schf_migration}
-      - DB_USERNAME=${DB_USERNAME:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-}
-      - SCHF_CORE_URL=${SCHF_CORE_URL:-http://host.docker.internal:8000}
-      - SCHF_CORE_API_KEY=${SCHF_CORE_API_KEY:-}
+      APP_NAME: "SCHF Migration"
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: ${APP_KEY:-}
+      APP_URL: http://localhost:8001
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-migration-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-schf_migration}
+      DB_USERNAME: ${DB_USERNAME:-schf}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me}
+      REDIS_HOST: migration-redis
+      REDIS_PORT: 6379
+      MIGRATION_SYNTHETIC_ONLY: "true"
+      FEATURE_REAL_CONNECTORS: "false"
     depends_on:
-      - postgres
+      - migration-postgres
+      - migration-redis
     networks:
       - schf-migration
 
-  frontend:
+  migration-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: schf-migration-frontend
+    container_name: migration-frontend
     restart: unless-stopped
     ports:
       - "3001:5173"
@@ -44,36 +46,41 @@ services:
     environment:
       - VITE_API_URL=http://localhost:8001/api
     depends_on:
-      - backend
+      - migration-backend
     networks:
       - schf-migration
 
-  postgres:
+  migration-postgres:
     image: postgres:16-alpine
-    container_name: schf-migration-db
+    container_name: migration-postgres
     restart: unless-stopped
     ports:
       - "5433:5432"
     environment:
       - POSTGRES_DB=${DB_DATABASE:-schf_migration}
-      - POSTGRES_USER=${DB_USERNAME:-root}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-}
+      - POSTGRES_USER=${DB_USERNAME:-schf}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-change_me}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - migration_postgres_data:/var/lib/postgresql/data
     networks:
-      - schf-migration
+      schf-migration:
+        aliases:
+          - postgres
 
-  redis:
+  migration-redis:
     image: redis:7-alpine
-    container_name: schf-migration-redis
+    container_name: migration-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
     networks:
-      - schf-migration
+      schf-migration:
+        aliases:
+          - redis
 
 volumes:
-  postgres_data:
+  migration_backend_vendor:
+  migration_postgres_data:
 
 networks:
   schf-migration:

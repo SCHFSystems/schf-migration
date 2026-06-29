@@ -6,9 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Models\MigrationProject;
 use App\Normalization\MappingProfileRegistry;
+use App\Normalization\NormalizationResultSerializer;
 use App\Normalization\NormalizationService;
 use App\Normalization\Profiles\FirebirdFinanceProfile;
+use App\Normalization\Profiles\SyntheticFinanceProfile;
 use App\Services\ConnectorFactory;
+use Illuminate\Http\JsonResponse;
 
 class NormalizationPreviewController
 {
@@ -16,12 +19,13 @@ class NormalizationPreviewController
         private ConnectorFactory $connectorFactory,
         private MappingProfileRegistry $registry,
         private NormalizationService $normalizationService,
+        private NormalizationResultSerializer $serializer,
     ) {}
 
     /**
      * Preview what normalization will produce.
      */
-    public function preview(MigrationProject $project)
+    public function preview(MigrationProject $project): JsonResponse
     {
         abort_if(! $project->source_config, 422, 'Project has no source configuration');
 
@@ -50,7 +54,7 @@ class NormalizationPreviewController
     /**
      * Run full normalization.
      */
-    public function normalize(MigrationProject $project)
+    public function normalize(MigrationProject $project): JsonResponse
     {
         abort_if(! $project->source_config, 422, 'Project has no source configuration');
 
@@ -70,7 +74,17 @@ class NormalizationPreviewController
 
             $connector->disconnect();
 
-            return response()->json($result);
+            $bundle = $this->serializer->toArray($result);
+            $project->source_config = array_merge($project->source_config ?? [], [
+                'normalized_bundle' => $bundle,
+                'pipeline_logs' => array_merge($project->source_config['pipeline_logs'] ?? [], [
+                    ['step' => 'normalization', 'status' => 'completed', 'at' => now()->toISOString()],
+                ]),
+            ]);
+            $project->status = MigrationProject::STATUS_VALIDATING;
+            $project->save();
+
+            return response()->json($bundle);
         } catch (\Throwable $e) {
             return response()->json([
                 'error'   => 'Normalization failed',
@@ -79,8 +93,25 @@ class NormalizationPreviewController
         }
     }
 
+    public function show(MigrationProject $project): JsonResponse
+    {
+        $bundle = $project->source_config['normalized_bundle'] ?? null;
+
+        if (! $bundle) {
+            return response()->json(['error' => 'Normalization has not been run yet'], 404);
+        }
+
+        return response()->json($bundle);
+    }
+
     private function registerProfiles(string $sourceType): void
     {
+        if ($sourceType === 'synthetic') {
+            foreach (SyntheticFinanceProfile::all() as $profile) {
+                $this->registry->register($profile);
+            }
+        }
+
         if ($sourceType === 'firebird') {
             foreach (FirebirdFinanceProfile::all() as $profile) {
                 $this->registry->register($profile);

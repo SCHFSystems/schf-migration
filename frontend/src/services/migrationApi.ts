@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,19 +21,34 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && localStorage.getItem('auth_token')) {
       localStorage.removeItem('auth_token');
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
+export interface PaginatedResponse<T> {
+  current_page: number;
+  data: T[];
+  first_page_url: string;
+  from: number | null;
+  last_page: number;
+  last_page_url: string;
+  links: Array<{ url: string | null; label: string; active: boolean }>;
+  next_page_url: string | null;
+  path: string;
+  per_page: number;
+  prev_page_url: string | null;
+  to: number | null;
+  total: number;
+}
+
 export interface MigrationProject {
   id: number;
   name: string;
   description: string | null;
-  source_type: 'firebird' | 'mysql' | 'sql_server' | 'postgres' | 'oracle' | 'zip';
+  source_type: 'synthetic' | 'firebird' | 'mysql' | 'sql_server' | 'postgres' | 'oracle' | 'zip';
   source_config: Record<string, any>;
   status: 'draft' | 'preparing' | 'validating' | 'previewing' | 'migrating' | 'completed' | 'failed' | 'rolled_back';
   ai_config: Record<string, any> | null;
@@ -134,43 +149,21 @@ export interface AiConfig {
   provider_label: string;
 }
 
+export interface ValidationSection {
+  valid: boolean;
+  issues: any[];
+  warnings: any[];
+  error_count: number;
+  warning_count: number;
+  quality_score?: number;
+}
+
 export interface ValidationResult {
-  schema_validation: {
-    valid: boolean;
-    issues: any[];
-    warnings: any[];
-    error_count: number;
-    warning_count: number;
-  };
-  referential_integrity: {
-    valid: boolean;
-    issues: any[];
-    warnings: any[];
-    error_count: number;
-    warning_count: number;
-  };
-  duplicate_detection: {
-    valid: boolean;
-    issues: any[];
-    warnings: any[];
-    error_count: number;
-    warning_count: number;
-  };
-  business_rules: {
-    valid: boolean;
-    issues: any[];
-    warnings: any[];
-    error_count: number;
-    warning_count: number;
-  };
-  data_quality: {
-    valid: boolean;
-    quality_score: number;
-    issues: any[];
-    warnings: any[];
-    error_count: number;
-    warning_count: number;
-  };
+  schema_validation: ValidationSection;
+  referential_integrity: ValidationSection;
+  duplicate_detection: ValidationSection;
+  business_rules: ValidationSection;
+  data_quality: ValidationSection;
   overall_valid: boolean;
   error_count: number;
   warning_count: number;
@@ -230,6 +223,32 @@ export interface Inventory {
   };
 }
 
+export interface NormalizationBundle {
+  generated_at: string;
+  summary: Record<string, number>;
+  entities: Record<string, Record<string, any>[]>;
+  issues: Array<{
+    type: string;
+    severity: 'error' | 'warning';
+    entity: string;
+    external_id: string;
+    field: string;
+    message: string;
+    value: any;
+  }>;
+}
+
+export interface QualityResult {
+  ran_at: string;
+  status: 'passed' | 'passed_with_warnings' | 'blocked';
+  summary: {
+    total_issues: number;
+    total_errors: number;
+    total_warnings: number;
+  };
+  issues: NormalizationBundle['issues'];
+}
+
 export interface MigrationPreview {
   project_id: number;
   status: 'ready' | 'blocked';
@@ -280,13 +299,28 @@ export interface MigrationPreview {
 }
 
 export const migrationApi = {
+  health: () => api.get<{ status: string; system: string }>('/health'),
   projects: {
     list: (params?: Record<string, any>) =>
-      api.get<{ data: MigrationProject[]; meta: any }>('/projects', { params }),
+      api.get<PaginatedResponse<MigrationProject>>('/projects', { params }),
     get: (id: number) =>
       api.get<MigrationProject>(`/projects/${id}`),
     create: (data: Partial<MigrationProject>) =>
       api.post<MigrationProject>('/projects', data),
+    createSynthetic: (scenario: 'clean' | 'warnings' | 'blocked' = 'clean') =>
+      api.post<MigrationProject>('/projects', {
+        name: `Synthetic ${scenario} project`,
+        description: 'Sprint 9 synthetic-only migration project',
+        source_type: 'synthetic',
+        source_config: {
+          scenario,
+          organization: {
+            external_id: 'ORG-SYN',
+            name: 'Synthetic Organization',
+            legal_name: 'Synthetic Organization Ltd',
+          },
+        },
+      }),
     update: (id: number, data: Partial<MigrationProject>) =>
       api.put<MigrationProject>(`/projects/${id}`, data),
     delete: (id: number) =>
@@ -343,6 +377,20 @@ export const migrationApi = {
   inventory: {
     generate: (projectId: number) =>
       api.post<Inventory>(`/projects/${projectId}/inventory/generate`),
+    get: (projectId: number) =>
+      api.get<Inventory>(`/projects/${projectId}/inventory`),
+  },
+  normalization: {
+    run: (projectId: number) =>
+      api.post<NormalizationBundle>(`/projects/${projectId}/normalization/run`),
+    get: (projectId: number) =>
+      api.get<NormalizationBundle>(`/projects/${projectId}/normalization`),
+  },
+  quality: {
+    run: (projectId: number) =>
+      api.post<QualityResult>(`/projects/${projectId}/quality/run`),
+    get: (projectId: number) =>
+      api.get<QualityResult>(`/projects/${projectId}/quality`),
   },
   previewGenerate: {
     generate: (projectId: number) =>

@@ -71,6 +71,12 @@ class MigrationWorkflowController extends Controller
 
     public function migrate(MigrationProject $project): JsonResponse
     {
+        if (filter_var(env('MIGRATION_SYNTHETIC_ONLY', true), FILTER_VALIDATE_BOOLEAN)) {
+            return response()->json([
+                'error' => 'Migration execution is disabled in synthetic-only mode',
+            ], 403);
+        }
+
         if ($project->status !== MigrationProject::STATUS_PREVIEWING) {
             return response()->json([
                 'error' => 'Project must be in previewing status to start migration',
@@ -88,6 +94,12 @@ class MigrationWorkflowController extends Controller
 
     public function rollback(MigrationProject $project): JsonResponse
     {
+        if (filter_var(env('MIGRATION_SYNTHETIC_ONLY', true), FILTER_VALIDATE_BOOLEAN)) {
+            return response()->json([
+                'error' => 'Rollback is disabled in synthetic-only mode',
+            ], 403);
+        }
+
         if (! in_array($project->status, [
             MigrationProject::STATUS_COMPLETED,
             MigrationProject::STATUS_FAILED,

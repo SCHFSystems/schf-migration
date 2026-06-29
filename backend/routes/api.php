@@ -5,6 +5,7 @@ use App\Http\Controllers\MigrationBundleController;
 use App\Http\Controllers\MigrationInventoryController;
 use App\Http\Controllers\MigrationPreviewController;
 use App\Http\Controllers\MigrationProjectController;
+use App\Http\Controllers\MigrationQualityController;
 use App\Http\Controllers\MigrationReportController;
 use App\Http\Controllers\MigrationWorkflowController;
 use App\Http\Controllers\NormalizationPreviewController;
@@ -12,6 +13,11 @@ use App\Http\Controllers\PreviewGenerateController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api')->group(function () {
+    Route::get('/health', fn () => response()->json([
+        'status' => 'ok',
+        'system' => 'SCHF Migration',
+    ]));
+
     Route::apiResource('projects', MigrationProjectController::class);
 
     Route::prefix('projects/{project}')->group(function () {
@@ -51,11 +57,18 @@ Route::prefix('api')->group(function () {
 
         Route::prefix('inventory')->group(function () {
             Route::post('/generate', [MigrationInventoryController::class, 'generate']);
+            Route::get('/', [MigrationInventoryController::class, 'show']);
         });
 
         Route::prefix('normalization')->group(function () {
+            Route::get('/', [NormalizationPreviewController::class, 'show']);
             Route::get('/preview', [NormalizationPreviewController::class, 'preview']);
             Route::post('/run', [NormalizationPreviewController::class, 'normalize']);
+        });
+
+        Route::prefix('quality')->group(function () {
+            Route::post('/run', [MigrationQualityController::class, 'run']);
+            Route::get('/', [MigrationQualityController::class, 'show']);
         });
 
         Route::prefix('preview')->group(function () {

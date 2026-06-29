@@ -14,6 +14,7 @@ const statusColors: Record<string, string> = {
 };
 
 const sourceTypeLabels: Record<string, string> = {
+  synthetic: 'Synthetic',
   firebird: 'Firebird',
   mysql: 'MySQL',
   sql_server: 'SQL Server',
@@ -27,7 +28,7 @@ export default function MigrationDashboard() {
 
   const projects = data?.data?.data || [];
   const stats = {
-    total: data?.data?.meta?.total || 0,
+    total: data?.data?.total || 0,
     active: projects.filter(p => ['preparing', 'validating', 'previewing', 'migrating'].includes(p.status)).length,
     completed: projects.filter(p => p.status === 'completed').length,
     failed: projects.filter(p => p.status === 'failed').length,
@@ -69,7 +70,7 @@ export default function MigrationDashboard() {
               to="/migration/projects/new"
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              New Project
+              Create Synthetic Project
             </Link>
           </div>
 

@@ -50,6 +50,7 @@ class MigrationProject extends Model
     const STATUS_ROLLED_BACK = 'rolled_back';
 
     const SOURCE_TYPES = [
+        'synthetic',
         'firebird',
         'mysql',
         'sql_server',
@@ -60,32 +61,32 @@ class MigrationProject extends Model
 
     public function imports(): HasMany
     {
-        return $this->hasMany(MigrationImport::class);
+        return $this->hasMany(MigrationImport::class, 'migration_project_id');
     }
 
     public function reports(): HasMany
     {
-        return $this->hasMany(MigrationReport::class);
+        return $this->hasMany(MigrationReport::class, 'migration_project_id');
     }
 
     public function apiKeys(): HasMany
     {
-        return $this->hasMany(MigrationApiKey::class);
+        return $this->hasMany(MigrationApiKey::class, 'migration_project_id');
     }
 
     public function previews(): HasMany
     {
-        return $this->hasMany(MigrationPreview::class);
+        return $this->hasMany(MigrationPreview::class, 'project_id');
     }
 
     public function latestPreview(): HasOne
     {
-        return $this->hasOne(MigrationPreview::class)->latestOfMany();
+        return $this->hasOne(MigrationPreview::class, 'project_id')->latestOfMany();
     }
 
     public function latestReport(): HasOne
     {
-        return $this->hasOne(MigrationReport::class)->latestOfMany();
+        return $this->hasOne(MigrationReport::class, 'migration_project_id')->latestOfMany();
     }
 
     public function creator(): BelongsTo

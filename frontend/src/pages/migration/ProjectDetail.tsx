@@ -5,10 +5,10 @@ import {
   usePrepareMigration,
   useValidateMigration,
   useRollbackMigration,
-  useBundlePreview,
   useExportBundle,
   useGenerateInventory,
   useGeneratePreview,
+  useRunSyntheticPipeline,
 } from '../../hooks/useMigration';
 import WorkflowStepper from '../../components/migration/WorkflowStepper';
 import migrationApi from '../../services/migrationApi';
@@ -32,13 +32,13 @@ export default function ProjectDetail() {
   const projectId = parseInt(id || '0', 10);
 
   const { data: project, isLoading } = useMigrationProject(projectId);
-  const { data: bundlePreview } = useBundlePreview(projectId);
   const prepareMutation = usePrepareMigration(projectId);
   const validateMutation = useValidateMigration(projectId);
   const rollbackMutation = useRollbackMigration(projectId);
   const exportBundleMutation = useExportBundle(projectId);
   const inventoryMutation = useGenerateInventory(projectId);
   const generatePreviewMutation = useGeneratePreview(projectId);
+  const runPipelineMutation = useRunSyntheticPipeline(projectId);
 
   if (isLoading) {
     return (
@@ -58,6 +58,13 @@ export default function ProjectDetail() {
 
   const data = project.data;
   const currentStepIndex = statusSteps.indexOf(data.status);
+  const sourceConfig = data.source_config || {};
+  const pipelineResult = runPipelineMutation.data;
+  const inventory = pipelineResult?.inventory || inventoryMutation.data?.data || sourceConfig.inventory;
+  const normalization = pipelineResult?.normalization || sourceConfig.normalized_bundle;
+  const quality = pipelineResult?.quality || sourceConfig.quality;
+  const preview = pipelineResult?.preview || sourceConfig.preview;
+  const pipelineLogs = sourceConfig.pipeline_logs || [];
 
   const handleAction = async (action: string) => {
     switch (action) {
@@ -79,6 +86,9 @@ export default function ProjectDetail() {
         if (confirm('Are you sure you want to rollback? This will revert all imported data.')) {
           await rollbackMutation.mutateAsync();
         }
+        break;
+      case 'run_synthetic_pipeline':
+        await runPipelineMutation.mutateAsync();
         break;
     }
   };
@@ -148,129 +158,92 @@ export default function ProjectDetail() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
           <div className="flex flex-wrap gap-3">
-            {data.status === 'draft' && (
-              <button
-                onClick={() => handleAction('prepare')}
-                disabled={prepareMutation.isPending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {prepareMutation.isPending ? 'Preparing...' : 'Start Preparation'}
-              </button>
-            )}
-            {data.status === 'validating' && (
-              <button
-                onClick={() => handleAction('validate')}
-                disabled={validateMutation.isPending}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50"
-              >
-                {validateMutation.isPending ? 'Validating...' : 'Validate Data'}
-              </button>
-            )}
-            {data.status === 'previewing' && (
-              <button
-                onClick={() => navigate(`/migration/projects/${projectId}/preview`)}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                Preview Data
-              </button>
-            )}
-            {data.status === 'previewing' && (
-              <button
-                onClick={() => navigate(`/migration/projects/${projectId}/migration-preview`)}
-                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
-              >
-                Migration Preview
-              </button>
-            )}
-            {data.status === 'previewing' && (
-              <button
-                onClick={() => inventoryMutation.mutateAsync()}
-                disabled={inventoryMutation.isPending}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
-              >
-                {inventoryMutation.isPending ? 'Generating...' : 'Generate Inventory'}
-              </button>
-            )}
-            {data.status === 'previewing' && (
-              <button
-                onClick={() => handleAction('export_bundle')}
-                disabled={exportBundleMutation.isPending}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                {exportBundleMutation.isPending ? 'Exporting...' : 'Export Bundle'}
-              </button>
-            )}
-            {['completed', 'failed'].includes(data.status) && (
-              <button
-                onClick={() => handleAction('rollback')}
-                disabled={rollbackMutation.isPending}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
-              >
-                {rollbackMutation.isPending ? 'Rolling back...' : 'Rollback'}
-              </button>
-            )}
             <button
-              onClick={() => navigate(`/migration/projects/${projectId}/ai-config`)}
+              onClick={() => handleAction('run_synthetic_pipeline')}
+              disabled={runPipelineMutation.isPending}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+            >
+              {runPipelineMutation.isPending ? 'Running Pipeline...' : 'Run Synthetic Pipeline'}
+            </button>
+            <button
+              onClick={() => inventoryMutation.mutateAsync()}
+              disabled={inventoryMutation.isPending}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
+            >
+              {inventoryMutation.isPending ? 'Generating...' : 'Generate Inventory Only'}
+            </button>
+            <button
+              onClick={() => generatePreviewMutation.mutateAsync()}
+              disabled={generatePreviewMutation.isPending}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {generatePreviewMutation.isPending ? 'Generating...' : 'Generate Preview'}
+            </button>
+            <button
+              onClick={() => navigate(`/migration/projects/${projectId}/preview`)}
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
+            >
+              Open Preview Page
+            </button>
+            <button
+              onClick={() => navigate(`/migration/projects/${projectId}/source`)}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              AI Settings
+              Source Config
             </button>
-            {data.status === 'completed' && (
-              <button
-                onClick={() => navigate(`/migration/projects/${projectId}/report`)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                View Report
-              </button>
-            )}
           </div>
         </div>
 
-        {bundlePreview?.data && (
+        {runPipelineMutation.error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {String((runPipelineMutation.error as any)?.message || 'Synthetic pipeline failed')}
+          </div>
+        )}
+
+        {(normalization || quality || preview || pipelineLogs.length > 0) && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Migration Bundle Preview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Synthetic Pipeline Result</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
               <div>
-                <p className="text-sm text-gray-500">Bundle Version</p>
-                <p className="font-semibold text-gray-900">{bundlePreview.data.bundle_version}</p>
+                <p className="text-sm text-gray-500">Suppliers</p>
+                <p className="text-2xl font-bold text-gray-900">{normalization?.summary?.total_suppliers ?? '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Source Tables</p>
-                <p className="font-semibold text-gray-900">{bundlePreview.data.source.tables}</p>
+                <p className="text-sm text-gray-500">Payables</p>
+                <p className="text-2xl font-bold text-gray-900">{normalization?.summary?.total_payables ?? '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Bundle Files</p>
-                <p className="font-semibold text-gray-900">{bundlePreview.data.files.length}</p>
+                <p className="text-sm text-gray-500">Quality</p>
+                <p className="text-2xl font-bold text-gray-900">{quality?.status ?? '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Preview</p>
+                <p className="text-2xl font-bold text-gray-900">{preview?.status ?? '-'}</p>
               </div>
             </div>
-            {bundlePreview.data.warnings.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm font-medium text-yellow-800 mb-2">Warnings</p>
-                <ul className="text-sm text-yellow-700 space-y-1">
-                  {bundlePreview.data.warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
+            {pipelineLogs.length > 0 && (
+              <div className="text-sm text-gray-600">
+                Last steps: {pipelineLogs.map((log: any) => `${log.step}:${log.status}`).join(' -> ')}
               </div>
             )}
           </div>
         )}
 
-        {inventoryMutation.data?.data && (
+        {inventory && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Database Inventory</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <p className="text-sm text-gray-500">Tables</p>
-                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_tables}</p>
+                <p className="text-2xl font-bold text-gray-900">{inventory.summary.total_tables}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Total Rows</p>
-                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_rows.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-gray-900">{inventory.summary.total_rows.toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Columns</p>
-                <p className="text-2xl font-bold text-gray-900">{inventoryMutation.data.data.summary.total_columns}</p>
+                <p className="text-2xl font-bold text-gray-900">{inventory.summary.total_columns}</p>
               </div>
             </div>
             <table className="min-w-full divide-y divide-gray-200">
@@ -284,7 +257,7 @@ export default function ProjectDetail() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {inventoryMutation.data.data.tables.map((table: any) => (
+                {inventory.tables.map((table: any) => (
                   <tr key={table.name}>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{table.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{table.row_count.toLocaleString()}</td>
