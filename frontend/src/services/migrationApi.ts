@@ -188,7 +188,7 @@ export interface BundlePreview {
   };
   files: Array<{
     path: string;
-    schema: string;
+    schema: string | null;
     required: boolean;
     records: number;
   }>;

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use SCHF\SDK\Bundle\Validator as BundleValidator;
 use Tests\TestCase;
 
 class SyntheticPipelineTest extends TestCase
@@ -67,6 +68,34 @@ class SyntheticPipelineTest extends TestCase
         $this->getJson("/api/projects/{$projectId}/preview/result")
             ->assertOk()
             ->assertJsonPath('status', 'ready');
+
+        $bundlePreview = $this->getJson("/api/projects/{$projectId}/bundle/preview")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('source.type', 'synthetic')
+            ->json();
+
+        $this->assertContains('payments.json', array_column($bundlePreview['files'], 'path'));
+        $paymentPreview = array_values(array_filter(
+            $bundlePreview['files'],
+            fn (array $file): bool => $file['path'] === 'payments.json'
+        ))[0];
+        $this->assertSame(5, $paymentPreview['records']);
+
+        $export = $this->postJson("/api/projects/{$projectId}/bundle/export")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->json();
+
+        $this->assertStringEndsWith('.schf', $export['bundle_path']);
+        $this->assertFileExists($export['bundle_path']);
+
+        $validator = new BundleValidator();
+        $validation = $validator->validate($export['bundle_path']);
+        $this->assertTrue($validation['valid'], implode(', ', $validation['errors']));
+        $this->assertSame(5, $validator->getManifest()?->getFileByPath('payments.json')['records']);
+
+        @unlink($export['bundle_path']);
     }
 
     public function test_invalid_project_returns_not_found(): void

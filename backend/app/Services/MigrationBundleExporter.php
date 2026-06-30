@@ -4,131 +4,252 @@ namespace App\Services;
 
 use App\Models\MigrationProject;
 use Illuminate\Support\Facades\File;
-use ZipArchive;
+use SCHF\SDK\Bundle\Builder;
+use SCHF\SDK\Bundle\Contract;
+use SCHF\SDK\Bundle\Doctor;
+use SCHF\SDK\Bundle\History;
+use SCHF\SDK\Bundle\Signer;
+use SCHF\SDK\Bundle\Validator as BundleValidator;
 
 class MigrationBundleExporter
 {
-    private const BUNDLE_VERSION = '1.0.0';
-    private const SDK_VERSION = '1.0.0';
-    private const CORE_MIN_VERSION = '1.5.0';
-
-    private const RECORD_FILES = [
-        'users' => ['path' => 'users.json', 'schema' => 'schemas/records/users.schema.json'],
-        'roles' => ['path' => 'roles.json', 'schema' => 'schemas/records/roles.schema.json'],
-        'permissions' => ['path' => 'permissions.json', 'schema' => 'schemas/records/permissions.schema.json'],
-        'suppliers' => ['path' => 'suppliers.json', 'schema' => 'schemas/records/suppliers.schema.json'],
-        'accounts' => ['path' => 'accounts.json', 'schema' => 'schemas/records/accounts.schema.json'],
-        'banks' => ['path' => 'banks.json', 'schema' => 'schemas/records/banks.schema.json'],
-        'categories' => ['path' => 'categories.json', 'schema' => 'schemas/records/categories.schema.json'],
-        'payments' => ['path' => 'payments.json', 'schema' => 'schemas/records/payments.schema.json'],
-        'expenses' => ['path' => 'expenses.json', 'schema' => 'schemas/records/expenses.schema.json'],
+    private const ENTITY_RECORD_FILES = [
+        'users' => 'users.json',
+        'roles' => 'roles.json',
+        'permissions' => 'permissions.json',
+        'suppliers' => 'suppliers.json',
+        'accounts' => 'accounts.json',
+        'banks' => 'banks.json',
+        'categories' => 'categories.json',
+        'payables' => 'payments.json',
+        'expenses' => 'expenses.json',
     ];
 
     public function preview(MigrationProject $project): array
     {
         $structure = data_get($project->source_config, 'detected_structure.tables', []);
-        $normalizedBundle = data_get($project->source_config, 'normalized_bundle', []);
+        $entities = $this->normalizedEntities($project);
+        $preview = $this->makeBuilder($project)->buildPreview();
 
         return [
             'success' => true,
-            'bundle_version' => self::BUNDLE_VERSION,
-            'sdk_version' => self::SDK_VERSION,
-            'core_min_version' => self::CORE_MIN_VERSION,
+            'bundle_version' => $preview['bundle_version'],
+            'sdk_version' => $preview['sdk_version'],
+            'core_min_version' => $preview['core_min_version'],
             'source' => [
-                'type' => $project->source_type,
+                ...$preview['source'],
                 'tables' => count($structure),
                 'inventory_hash' => $this->inventoryHash($project),
             ],
-            'files' => $this->previewFiles($normalizedBundle),
-            'warnings' => $this->buildPreviewWarnings($structure, $normalizedBundle),
+            'files' => $this->previewFiles($preview['files']),
+            'total_records' => $preview['total_records'],
+            'warnings' => array_values(array_unique([
+                ...$preview['warnings'],
+                ...$this->buildPreviewWarnings($structure, $entities),
+            ])),
         ];
     }
 
     public function export(MigrationProject $project): array
     {
-        if (! class_exists(ZipArchive::class)) {
-            return [
-                'success' => false,
-                'error' => 'PHP ZipArchive extension is required to export Migration Bundles.',
-            ];
-        }
-
         $timestamp = now()->format('Ymd_His');
         $baseDir = storage_path("app/migration_bundles/project_{$project->id}_{$timestamp}");
-        $bundleDir = "{$baseDir}/bundle";
+        $bundlePath = "{$baseDir}/migration-package." . Contract::EXTENSION;
 
-        File::ensureDirectoryExists($bundleDir);
-        File::ensureDirectoryExists("{$bundleDir}/attachments");
-        File::ensureDirectoryExists("{$bundleDir}/logs");
+        try {
+            File::ensureDirectoryExists($baseDir);
 
-        $recordFiles = $this->writeRecordFiles($project, $bundleDir);
-        $reportPath = $this->writeReport($project, $bundleDir, $recordFiles);
+            $temporaryPath = $this->makeBuilder($project)->build();
+            File::move($temporaryPath, $bundlePath);
 
-        $manifestFiles = $this->buildManifestFiles($bundleDir, $recordFiles, $reportPath);
-        $manifest = $this->buildManifest($project, $manifestFiles);
-        $this->writeJson("{$bundleDir}/manifest.json", $manifest);
+            $signature = $this->signIfConfigured($bundlePath);
+            if (($signature['configured'] ?? false) && ! ($signature['success'] ?? false)) {
+                return [
+                    'success' => false,
+                    'error' => $signature['error'] ?? 'Bundle signing failed.',
+                    'signature' => $signature,
+                ];
+            }
 
-        $this->writeChecksums($bundleDir);
+            $validator = new BundleValidator();
+            $validation = $validator->validate($bundlePath);
+            if (! $validation['valid']) {
+                return [
+                    'success' => false,
+                    'error' => 'SDK bundle validation failed.',
+                    'validation' => $validation,
+                ];
+            }
 
-        $zipPath = "{$baseDir}/migration-package.zip";
-        $this->zipDirectory($bundleDir, $zipPath);
+            $manifest = $validator->getManifest();
+            $doctor = (new Doctor())->diagnose($bundlePath, true);
+            $history = (new History(storage_path('app/migration_bundles/history')))->record($bundlePath, $manifest);
+            $packageHash = strtoupper(hash_file('sha256', $bundlePath));
 
-        $packageHash = hash_file('sha256', $zipPath);
+            $sourceConfig = $project->source_config ?? [];
+            $sourceConfig['latest_bundle'] = [
+                'bundle_path' => $bundlePath,
+                'filename' => basename($bundlePath),
+                'sha256' => $packageHash,
+                'generated_at' => now()->toIso8601String(),
+                'manifest' => $manifest?->toArray(),
+                'doctor' => $doctor,
+                'history' => $history,
+                'signature' => $signature,
+            ];
+            $project->update(['source_config' => $sourceConfig]);
 
-        $sourceConfig = $project->source_config ?? [];
-        $sourceConfig['latest_bundle'] = [
-            'zip_path' => $zipPath,
-            'directory' => $bundleDir,
-            'sha256' => $packageHash,
-            'generated_at' => now()->toIso8601String(),
-        ];
-        $project->update(['source_config' => $sourceConfig]);
-
-        return [
-            'success' => true,
-            'bundle_path' => $zipPath,
-            'bundle_sha256' => $packageHash,
-            'download_url' => "/api/projects/{$project->id}/bundle/download",
-            'manifest' => $manifest,
-        ];
+            return [
+                'success' => true,
+                'bundle_path' => $bundlePath,
+                'bundle_sha256' => $packageHash,
+                'download_url' => "/api/projects/{$project->id}/bundle/download",
+                'manifest' => $manifest?->toArray(),
+                'doctor' => $doctor,
+                'history' => $history,
+                'signature' => $signature,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     public function latestBundlePath(MigrationProject $project): ?string
     {
-        $path = data_get($project->source_config, 'latest_bundle.zip_path');
+        $path = data_get($project->source_config, 'latest_bundle.bundle_path');
 
         return $path && File::exists($path) ? $path : null;
     }
 
-    private function previewFiles(array $normalizedBundle): array
+    public function latestBundleFilename(MigrationProject $project): string
     {
-        $files = [[
-            'path' => 'organization.json',
-            'schema' => 'schemas/records/organization.schema.json',
-            'required' => true,
-            'records' => 1,
-        ]];
-
-        foreach (self::RECORD_FILES as $key => $definition) {
-            $files[] = [
-                'path' => $definition['path'],
-                'schema' => $definition['schema'],
-                'required' => true,
-                'records' => count($normalizedBundle[$key] ?? []),
-            ];
-        }
-
-        $files[] = [
-            'path' => 'report.json',
-            'schema' => 'schemas/bundle/report.schema.json',
-            'required' => true,
-            'records' => 1,
-        ];
-
-        return $files;
+        return data_get($project->source_config, 'latest_bundle.filename', 'migration-package.' . Contract::EXTENSION);
     }
 
-    private function buildPreviewWarnings(array $structure, array $normalizedBundle): array
+    private function previewFiles(array $sdkFiles): array
+    {
+        return [
+            ...$sdkFiles,
+            [
+                'path' => 'report.json',
+                'schema' => 'schemas/bundle/report.schema.json',
+                'required' => true,
+                'records' => 1,
+            ],
+            [
+                'path' => 'checksum.sha256',
+                'schema' => null,
+                'required' => true,
+                'records' => 1,
+            ],
+        ];
+    }
+
+    private function makeBuilder(MigrationProject $project): Builder
+    {
+        $organization = $this->organization($project);
+        $builder = new Builder();
+        $builder
+            ->setGenerator('schf-migration', config('app.migration_version', '1.0.0'), data_get($project->source_config, 'plugin.name'))
+            ->setOrganization(
+                (string) ($organization['external_id'] ?? "project-{$project->id}"),
+                (string) ($organization['name'] ?? $project->name),
+                array_diff_key($organization, array_flip(['external_id', 'name']))
+            )
+            ->setSource(
+                $project->source_type,
+                data_get($project->source_config, 'legacy_product'),
+                data_get($project->source_config, 'legacy_version'),
+                $this->inventoryHash($project)
+            );
+
+        foreach ($this->recordPayloads($project) as $file => $records) {
+            $builder->addRecords($file, $records);
+        }
+
+        return $builder;
+    }
+
+    private function recordPayloads(MigrationProject $project): array
+    {
+        $entities = $this->normalizedEntities($project);
+        $payloads = [];
+
+        foreach (Contract::RECORD_FILES as $file => $schema) {
+            $payloads[$file] = [];
+        }
+
+        foreach (self::ENTITY_RECORD_FILES as $entity => $file) {
+            $records = array_values($entities[$entity] ?? []);
+            $payloads[$file] = match ($file) {
+                'suppliers.json' => array_map(fn (array $record): array => $this->supplierRecord($record), $records),
+                'accounts.json' => array_map(fn (array $record): array => $this->accountRecord($record), $records),
+                'payments.json' => array_map(fn (array $record): array => $this->paymentRecord($record), $records),
+                default => $records,
+            };
+        }
+
+        return $payloads;
+    }
+
+    private function normalizedEntities(MigrationProject $project): array
+    {
+        $entities = data_get($project->source_config, 'normalized_bundle.entities', []);
+
+        return is_array($entities) ? $entities : [];
+    }
+
+    private function organization(MigrationProject $project): array
+    {
+        $organization = data_get($project->source_config, 'normalized_bundle.entities.organizations.0')
+            ?? data_get($project->source_config, 'organization')
+            ?? data_get($project->source_config, 'target_organization')
+            ?? [];
+
+        if (! is_array($organization)) {
+            $organization = [];
+        }
+
+        return array_merge([
+            'external_id' => "project-{$project->id}",
+            'name' => $project->name,
+        ], $organization);
+    }
+
+    private function supplierRecord(array $record): array
+    {
+        if (array_key_exists('active', $record)) {
+            $record['active'] = $this->toBoolean($record['active']);
+        }
+
+        return $record;
+    }
+
+    private function accountRecord(array $record): array
+    {
+        $metadata = is_array($record['metadata'] ?? null) ? $record['metadata'] : [];
+        $metadata['agency'] = $metadata['agency'] ?? ($record['branch'] ?? null);
+        $metadata['account_number'] = $metadata['account_number'] ?? ($record['account_number'] ?? null);
+
+        $record['metadata'] = $metadata;
+        $record['type'] = $record['type'] ?? 'checking';
+        $record['bank_external_id'] = $record['bank_external_id'] ?? null;
+
+        return $record;
+    }
+
+    private function paymentRecord(array $record): array
+    {
+        $record['direction'] = $record['direction'] ?? 'payable';
+        $record['status'] = $record['status'] ?? (empty($record['paid_at']) ? 'pending' : 'paid');
+
+        return $record;
+    }
+
+    private function buildPreviewWarnings(array $structure, array $entities): array
     {
         $warnings = [];
 
@@ -136,7 +257,7 @@ class MigrationBundleExporter
             $warnings[] = 'No source inventory was detected yet. Run preparation before exporting.';
         }
 
-        $normalizedCount = array_sum(array_map(fn ($records) => is_array($records) ? count($records) : 0, $normalizedBundle));
+        $normalizedCount = array_sum(array_map(fn ($records) => is_array($records) ? count($records) : 0, $entities));
         if ($normalizedCount === 0) {
             $warnings[] = 'No normalized records found. Bundle will contain structure and metadata only.';
         }
@@ -144,142 +265,37 @@ class MigrationBundleExporter
         return $warnings;
     }
 
-    private function writeRecordFiles(MigrationProject $project, string $bundleDir): array
+    private function signIfConfigured(string $bundlePath): array
     {
-        $normalizedBundle = data_get($project->source_config, 'normalized_bundle', []);
-
-        $organization = data_get($project->source_config, 'target_organization', [
-            'external_id' => "project-{$project->id}",
-            'name' => $project->name,
-            'legal_name' => null,
-            'metadata' => [],
-        ]);
-
-        $files = [
-            'organization.json' => $organization,
-        ];
-
-        foreach (self::RECORD_FILES as $key => $definition) {
-            $files[$definition['path']] = array_values($normalizedBundle[$key] ?? []);
-        }
-
-        foreach ($files as $path => $payload) {
-            $this->writeJson("{$bundleDir}/{$path}", $payload);
-        }
-
-        return array_keys($files);
-    }
-
-    private function writeReport(MigrationProject $project, string $bundleDir, array $recordFiles): string
-    {
-        $summary = [];
-        foreach ($recordFiles as $file) {
-            $payload = json_decode(File::get("{$bundleDir}/{$file}"), true);
-            $summary[$file] = is_array($payload) && array_is_list($payload) ? count($payload) : 1;
-        }
-
-        $report = [
-            'status' => 'ready_with_warnings',
-            'generated_at' => now()->toIso8601String(),
-            'summary' => $summary,
-            'warnings' => $this->buildPreviewWarnings(
-                data_get($project->source_config, 'detected_structure.tables', []),
-                data_get($project->source_config, 'normalized_bundle', [])
-            ),
-            'errors' => [],
-        ];
-
-        $path = 'report.json';
-        $this->writeJson("{$bundleDir}/{$path}", $report);
-
-        return $path;
-    }
-
-    private function buildManifestFiles(string $bundleDir, array $recordFiles, string $reportPath): array
-    {
-        $files = [];
-        $schemaMap = ['organization.json' => 'schemas/records/organization.schema.json'];
-
-        foreach (self::RECORD_FILES as $definition) {
-            $schemaMap[$definition['path']] = $definition['schema'];
-        }
-        $schemaMap[$reportPath] = 'schemas/bundle/report.schema.json';
-
-        foreach ([...$recordFiles, $reportPath] as $path) {
-            $payload = json_decode(File::get("{$bundleDir}/{$path}"), true);
-            $files[] = [
-                'path' => $path,
-                'schema' => $schemaMap[$path],
-                'required' => true,
-                'records' => is_array($payload) && array_is_list($payload) ? count($payload) : 1,
-                'sha256' => strtoupper(hash_file('sha256', "{$bundleDir}/{$path}")),
+        $privateKeyPath = env('MIGRATION_BUNDLE_PRIVATE_KEY');
+        if (! $privateKeyPath) {
+            return [
+                'configured' => false,
+                'signed' => false,
+                'message' => 'No signing key configured.',
             ];
         }
 
-        return $files;
+        $result = (new Signer())->sign(
+            $bundlePath,
+            $privateKeyPath,
+            dirname($bundlePath) . DIRECTORY_SEPARATOR . 'signing-key.pub'
+        );
+
+        return ['configured' => true, 'signed' => $result['success'] ?? false, ...$result];
     }
 
-    private function buildManifest(MigrationProject $project, array $files): array
+    private function toBoolean(mixed $value): bool
     {
-        return [
-            'bundle_version' => self::BUNDLE_VERSION,
-            'sdk_version' => self::SDK_VERSION,
-            'core_min_version' => self::CORE_MIN_VERSION,
-            'core_max_version' => null,
-            'generated_at' => now()->toIso8601String(),
-            'generator' => [
-                'name' => 'schf-migration',
-                'version' => config('app.migration_version', '1.0.0'),
-                'plugin' => data_get($project->source_config, 'plugin.name'),
-            ],
-            'organization' => [
-                'external_id' => data_get($project->source_config, 'target_organization.external_id', "project-{$project->id}"),
-                'name' => data_get($project->source_config, 'target_organization.name', $project->name),
-            ],
-            'source' => [
-                'type' => $project->source_type,
-                'product' => data_get($project->source_config, 'legacy_product'),
-                'version' => data_get($project->source_config, 'legacy_version'),
-                'inventory_hash' => $this->inventoryHash($project),
-            ],
-            'files' => $files,
-        ];
-    }
-
-    private function writeChecksums(string $bundleDir): void
-    {
-        $lines = [];
-        foreach (File::allFiles($bundleDir) as $file) {
-            $relative = str_replace('\\', '/', $file->getRelativePathname());
-            if ($relative === 'checksum.sha256') {
-                continue;
-            }
-
-            $lines[] = strtoupper(hash_file('sha256', $file->getPathname())) . "  {$relative}";
+        if (is_bool($value)) {
+            return $value;
         }
 
-        sort($lines);
-        File::put("{$bundleDir}/checksum.sha256", implode(PHP_EOL, $lines) . PHP_EOL);
-    }
-
-    private function zipDirectory(string $directory, string $zipPath): void
-    {
-        $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new \RuntimeException("Unable to create bundle zip: {$zipPath}");
+        if (is_string($value)) {
+            return in_array(strtoupper($value), ['1', 'S', 'Y', 'YES', 'TRUE', 'ACTIVE'], true);
         }
 
-        foreach (File::allFiles($directory) as $file) {
-            $relative = str_replace('\\', '/', $file->getRelativePathname());
-            $zip->addFile($file->getPathname(), $relative);
-        }
-
-        $zip->close();
-    }
-
-    private function writeJson(string $path, array $payload): void
-    {
-        File::put($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+        return (bool) $value;
     }
 
     private function inventoryHash(MigrationProject $project): string

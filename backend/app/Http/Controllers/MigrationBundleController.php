@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MigrationProject;
 use App\Services\MigrationBundleExporter;
 use Illuminate\Http\JsonResponse;
+use SCHF\SDK\Bundle\Contract;
 
 class MigrationBundleController extends Controller
 {
@@ -32,6 +33,8 @@ class MigrationBundleController extends Controller
             return response()->json(['error' => 'No exported bundle found'], 404);
         }
 
-        return response()->download($path, 'migration-package.zip');
+        return response()->download($path, $this->exporter->latestBundleFilename($project), [
+            'Content-Type' => Contract::MIME_TYPE,
+        ]);
     }
 }
