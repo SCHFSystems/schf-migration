@@ -1,0 +1,32 @@
+services:
+  migration-backend:
+    environment:
+      MIGRATION_SYNTHETIC_ONLY: "false"
+      FEATURE_REAL_CONNECTORS: "true"
+      FIREBIRD_LAB_HOST: firebird-lab
+      FIREBIRD_LAB_PORT: "3050"
+      FIREBIRD_LAB_DATABASE: /var/lib/firebird/data/lab_schf.fdb
+      FIREBIRD_LAB_USERNAME: ${FIREBIRD_LAB_USER:-schf_lab_user}
+      FIREBIRD_LAB_PASSWORD: ${FIREBIRD_LAB_PASSWORD:-schf_lab_password_change_me}
+    depends_on:
+      - firebird-lab
+
+  firebird-lab:
+    image: firebirdsql/firebird:4.0.0
+    container_name: firebird-lab
+    restart: unless-stopped
+    ports:
+      - "3050:3050"
+    environment:
+      FIREBIRD_USER: ${FIREBIRD_LAB_USER:-schf_lab_user}
+      FIREBIRD_PASSWORD: ${FIREBIRD_LAB_PASSWORD:-schf_lab_password_change_me}
+      FIREBIRD_DATABASE: lab_schf.fdb
+      FIREBIRD_DATABASE_DEFAULT_CHARSET: UTF8
+    volumes:
+      - firebird_lab_data:/var/lib/firebird/data
+      - ./database/lab/firebird:/lab/firebird:ro
+    networks:
+      - schf-migration
+
+volumes:
+  firebird_lab_data:

@@ -85,19 +85,21 @@ class NormalizationService
         $qualityIssues = $this->qualityService->checkAll($results);
         $issues = array_merge($issues, $qualityIssues);
 
-        if ($organization) {
-            $results['organizations'] = [$organization];
+        $organizations = $results['organizations'] ?? [];
+        if (empty($organizations) && $organization) {
+            $organizations = [new NormalizedOrganization(
+                external_id: $organization['external_id'] ?? 'default',
+                name:        $organization['name'] ?? 'Default Organization',
+                legal_name:  $organization['legal_name'] ?? null,
+            )];
         }
+        $results['organizations'] = $organizations;
 
         // Build summary
         $summary = $this->buildSummary($results, $issues);
 
         return new NormalizationResult(
-            organizations: $organization ? [new NormalizedOrganization(
-                external_id: $organization['external_id'] ?? 'default',
-                name:        $organization['name'] ?? 'Default Organization',
-                legal_name:  $organization['legal_name'] ?? null,
-            )] : [],
+            organizations: $organizations,
             users:       $results['users'] ?? [],
             suppliers:   $results['suppliers'] ?? [],
             accounts:    $results['accounts'] ?? [],

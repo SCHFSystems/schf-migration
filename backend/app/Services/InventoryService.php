@@ -79,7 +79,7 @@ class InventoryService
     {
         try {
             $result = $connector->fetchAll("SELECT COUNT(*) AS cnt FROM \"{$tableName}\"");
-            return (int) ($result[0]['cnt'] ?? 0);
+            return (int) ($result[0]['cnt'] ?? $result[0]['CNT'] ?? 0);
         } catch (\Throwable) {
             return -1;
         }
@@ -120,12 +120,14 @@ class InventoryService
             try {
                 $rows = $connector->fetchAll(
                     "SELECT ISG.RDB\$FIELD_NAME AS COLUMN_NAME,
-                            RC.RDB\$RELATION_NAME AS REF_TABLE
-                       FROM RDB\$RELATION_CONSTRAINTS RC
-                       JOIN RDB\$INDEX_SEGMENTS ISG ON ISG.RDB\$INDEX_NAME = RC.RDB\$INDEX_NAME
-                      WHERE RC.RDB\$RELATION_NAME = ?
-                        AND RC.RDB\$CONSTRAINT_TYPE = 'FOREIGN KEY'
-                      ORDER BY ISG.RDB\$FIELD_POSITION",
+                            PKC.RDB\$RELATION_NAME AS REF_TABLE
+                       FROM RDB\$RELATION_CONSTRAINTS FKC
+                       JOIN RDB\$REF_CONSTRAINTS RFC ON RFC.RDB\$CONSTRAINT_NAME = FKC.RDB\$CONSTRAINT_NAME
+                       JOIN RDB\$RELATION_CONSTRAINTS PKC ON PKC.RDB\$CONSTRAINT_NAME = RFC.RDB\$CONST_NAME_UQ
+                       JOIN RDB\$INDEX_SEGMENTS ISG ON ISG.RDB\$INDEX_NAME = FKC.RDB\$INDEX_NAME
+                      WHERE FKC.RDB\$RELATION_NAME = ?
+                        AND FKC.RDB\$CONSTRAINT_TYPE = 'FOREIGN KEY'
+                      ORDER BY FKC.RDB\$CONSTRAINT_NAME, ISG.RDB\$FIELD_POSITION",
                     [$tableName]
                 );
                 $fks = [];

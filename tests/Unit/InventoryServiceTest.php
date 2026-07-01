@@ -153,4 +153,40 @@ class InventoryServiceTest extends TestCase
         $this->assertStringEndsWith('...', $sampleValue);
         $this->assertLessThan(300, strlen($sampleValue));
     }
+
+    public function test_generate_detects_firebird_foreign_keys_and_uppercase_count_alias(): void
+    {
+        $connector = $this->createMock(ConnectorInterface::class);
+        $connector->method('getDriverName')->willReturn('firebird');
+        $connector->method('getSchema')->willReturn([
+            [
+                'table_name' => 'TITULO_PAGAR',
+                'columns' => [
+                    'ID' => ['type' => 'integer', 'nullable' => false, 'default' => null],
+                    'FORNECEDOR_ID' => ['type' => 'integer', 'nullable' => true, 'default' => null],
+                ],
+            ],
+        ]);
+
+        $connector->method('fetchAll')->willReturnCallback(function (string $sql) {
+            if (str_contains($sql, 'COUNT(*)')) {
+                return [['CNT' => 3]];
+            }
+            if (str_contains($sql, 'PRIMARY KEY')) {
+                return [['COLUMN_NAME' => 'ID']];
+            }
+            if (str_contains($sql, 'FOREIGN KEY')) {
+                return [['COLUMN_NAME' => 'FORNECEDOR_ID', 'REF_TABLE' => 'FORNECEDOR']];
+            }
+            if (str_contains($sql, 'SELECT FIRST')) {
+                return [['ID' => 1, 'FORNECEDOR_ID' => 1]];
+            }
+            return [];
+        });
+
+        $result = $this->service->generate($connector);
+
+        $this->assertSame(3, $result['summary']['total_rows']);
+        $this->assertSame(['FORNECEDOR_ID' => 'FORNECEDOR'], $result['tables'][0]['foreign_keys']);
+    }
 }

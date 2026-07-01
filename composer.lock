@@ -1064,7 +1064,7 @@
             "dist": {
                 "type": "path",
                 "url": "../schf-sdk",
-                "reference": "865a25b47298864fa0dff96bae845f81c115bac1"
+                "reference": "f2e873a1b3f7a1be9f99921eb91a06073b59525f"
             },
             "require": {
                 "ext-json": "*",

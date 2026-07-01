@@ -3,11 +3,12 @@ FROM php:8.3-cli
 RUN apt-get update && apt-get install -y \
     git \
     curl \
+    firebird-dev \
     libpq-dev \
     libzip-dev \
     zip \
     unzip \
-    && docker-php-ext-install bcmath pdo_mysql pdo_pgsql zip \
+    && docker-php-ext-install bcmath pdo_firebird pdo_mysql pdo_pgsql zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

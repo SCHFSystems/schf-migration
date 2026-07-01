@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Services\Synthetic\SyntheticConnector;
 use App\Services\Synthetic\SyntheticSourceService;
 use SCHF\SDK\Connector\ConnectorInterface;
+use SCHF\SDK\Connector\Drivers\FirebirdDriver;
 
 class ConnectorFactory
 {
@@ -30,7 +31,7 @@ class ConnectorFactory
 
         return match ($sourceType) {
             'synthetic' => $this->makeSynthetic($config),
-            'firebird'  => $this->realConnectorUnavailable($sourceType),
+            'firebird'  => $this->makeFirebird($config),
             'mysql', 'postgresql', 'sqlserver', 'oracle', 'sqlite' => $this->realConnectorUnavailable($sourceType),
             default     => throw new \InvalidArgumentException("No connector available for source type: {$sourceType}"),
         };
@@ -41,6 +42,26 @@ class ConnectorFactory
         return ($this->syntheticSourceService ?? new SyntheticSourceService())->connector($config);
     }
 
+    private function makeFirebird(array $config): FirebirdDriver
+    {
+        if (! $this->realConnectorsEnabled()) {
+            throw new \InvalidArgumentException('Real connectors are disabled by feature flag');
+        }
+
+        $config['dbname'] = $config['dbname'] ?? $config['database'] ?? null;
+
+        foreach (['dbname', 'username', 'password'] as $required) {
+            if (empty($config[$required])) {
+                throw new \InvalidArgumentException("Missing Firebird connection parameter: {$required}");
+            }
+        }
+
+        $connector = new FirebirdDriver();
+        $connector->connect($config);
+
+        return $connector;
+    }
+
     private function realConnectorUnavailable(string $sourceType): never
     {
         throw new \InvalidArgumentException("No connector available for source type: {$sourceType}");
@@ -49,5 +70,10 @@ class ConnectorFactory
     private function syntheticOnly(): bool
     {
         return filter_var(env('MIGRATION_SYNTHETIC_ONLY', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function realConnectorsEnabled(): bool
+    {
+        return filter_var(env('FEATURE_REAL_CONNECTORS', false), FILTER_VALIDATE_BOOLEAN);
     }
 }

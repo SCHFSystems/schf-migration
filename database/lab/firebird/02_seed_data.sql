@@ -1,0 +1,21 @@
+INSERT INTO EMPRESA (ID, NOME, CNPJ, ATIVO) VALUES (1, 'Synthetic Firebird Company', 'FIREBIRD-DOC-001', 'S');
+
+INSERT INTO FORNECEDOR (ID, NOME, DOCUMENTO, EMAIL, ATIVO) VALUES (1, 'Synthetic Firebird Supplier A', 'FIRE-SUP-DOC-001', 'supplier.a@firebird-lab.local', 'S');
+INSERT INTO FORNECEDOR (ID, NOME, DOCUMENTO, EMAIL, ATIVO) VALUES (2, 'Synthetic Firebird Supplier B', 'FIRE-SUP-DOC-002', 'supplier.b@firebird-lab.local', 'S');
+
+INSERT INTO CATEGORIA (ID, NOME, TIPO, ATIVO) VALUES (1, 'Synthetic Firebird Category A', 'expense', 'S');
+INSERT INTO CATEGORIA (ID, NOME, TIPO, ATIVO) VALUES (2, 'Synthetic Firebird Category B', 'expense', 'S');
+
+INSERT INTO CONTA_BANCARIA (ID, NOME, BANCO, AGENCIA, CONTA, ATIVO) VALUES (1, 'Synthetic Firebird Account A', 'FIREBANK', '0001', 'FB-0001', 'S');
+INSERT INTO CONTA_BANCARIA (ID, NOME, BANCO, AGENCIA, CONTA, ATIVO) VALUES (2, 'Synthetic Firebird Account B', 'FIREBANK', '0002', 'FB-0002', 'S');
+
+INSERT INTO TITULO_PAGAR (ID, FORNECEDOR_ID, CATEGORIA_ID, CONTA_ID, DESCRICAO, VALOR, VENCIMENTO, STATUS) VALUES (1, 1, 1, 1, 'Synthetic Firebird payable A', 100.00, DATE '2026-09-01', 'pending');
+INSERT INTO TITULO_PAGAR (ID, FORNECEDOR_ID, CATEGORIA_ID, CONTA_ID, DESCRICAO, VALOR, VENCIMENTO, STATUS) VALUES (2, 2, 2, 2, 'Synthetic Firebird payable B', 200.00, DATE '2026-09-02', 'pending');
+INSERT INTO TITULO_PAGAR (ID, FORNECEDOR_ID, CATEGORIA_ID, CONTA_ID, DESCRICAO, VALOR, VENCIMENTO, STATUS) VALUES (3, 1, 2, 1, 'Synthetic Firebird payable C', 300.00, DATE '2026-09-03', 'pending');
+
+INSERT INTO DESPESA (ID, CATEGORIA_ID, DESCRICAO, VALOR, DATA_DESPESA) VALUES (1, 1, 'Synthetic Firebird expense A', 25.00, DATE '2026-09-01');
+INSERT INTO DESPESA (ID, CATEGORIA_ID, DESCRICAO, VALOR, DATA_DESPESA) VALUES (2, 2, 'Synthetic Firebird expense B', 75.00, DATE '2026-09-02');
+
+INSERT INTO USUARIO (ID, NOME, EMAIL, ATIVO, PAPEIS) VALUES (1, 'Synthetic Firebird User', 'synthetic.firebird.user@firebird-lab.local', 'S', 'admin');
+
+COMMIT;

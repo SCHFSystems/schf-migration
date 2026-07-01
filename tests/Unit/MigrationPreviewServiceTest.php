@@ -131,6 +131,26 @@ class MigrationPreviewServiceTest extends TestCase
         $this->assertTrue($preview['ready_for_bundle']);
     }
 
+    public function testOrphanGateBlocksBundleWhenEnabled(): void
+    {
+        $result = new NormalizationResult(
+            suppliers: [new NormalizedSupplier(external_id: 'SUP-1', name: 'Supplier')],
+            payables: [new NormalizedPayable(external_id: 'PAY-1', direction: 'payable', amount: 100.0, due_date: '2026-01-01', status: 'pending', supplier_external_id: 'MISSING')],
+            categories: [new NormalizedCategory(external_id: 'CAT-1', name: 'Category', type: 'expense')],
+            issues: [
+                new QualityIssue(type: 'orphan', severity: 'warning', entity: 'payables', external_id: 'PAY-1', field: 'supplier_external_id', message: 'Orphan ref'),
+            ],
+        );
+
+        $preview = $this->service->generate(1, [
+            ...$this->validSourceConfig,
+            'quality_gates' => ['block_orphans' => true],
+        ], $result);
+
+        $this->assertFalse($preview['ready_for_bundle']);
+        $this->assertSame('blocked', $preview['status']);
+    }
+
     public function testReadyForBundleFalseWithErrors(): void
     {
         $result = new NormalizationResult(

@@ -8,6 +8,7 @@ use App\Normalization\MappingProfileRegistry;
 use App\Normalization\NormalizationResultSerializer;
 use App\Normalization\NormalizationService;
 use App\Normalization\Profiles\FirebirdFinanceProfile;
+use App\Normalization\Profiles\FirebirdLabFinanceProfile;
 use App\Normalization\Profiles\SyntheticFinanceProfile;
 use App\Services\ConnectorFactory;
 use App\Services\MigrationPreviewService;
@@ -27,7 +28,7 @@ class PreviewGenerateController
     {
         abort_if(! $project->source_config, 422, 'Project has no source configuration');
 
-        $this->registerProfiles($project->source_type);
+        $this->registerProfiles($project);
 
         try {
             $bundle = $project->source_config['normalized_bundle'] ?? null;
@@ -102,16 +103,20 @@ class PreviewGenerateController
         return response()->json($preview->toApiResponse());
     }
 
-    private function registerProfiles(string $sourceType): void
+    private function registerProfiles(MigrationProject $project): void
     {
-        if ($sourceType === 'synthetic') {
+        if ($project->source_type === 'synthetic') {
             foreach (SyntheticFinanceProfile::all() as $profile) {
                 $this->registry->register($profile);
             }
         }
 
-        if ($sourceType === 'firebird') {
-            foreach (FirebirdFinanceProfile::all() as $profile) {
+        if ($project->source_type === 'firebird') {
+            $profiles = ($project->source_config['profile'] ?? null) === 'firebird-lab-finance'
+                ? FirebirdLabFinanceProfile::all()
+                : FirebirdFinanceProfile::all();
+
+            foreach ($profiles as $profile) {
                 $this->registry->register($profile);
             }
         }

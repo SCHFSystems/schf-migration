@@ -9,6 +9,7 @@ use App\Normalization\DataQualityService;
 use App\Normalization\MappingProfileRegistry;
 use App\Normalization\NormalizationService;
 use App\Normalization\Profiles\FirebirdFinanceProfile;
+use App\Normalization\Profiles\FirebirdLabFinanceProfile;
 use App\Services\InventoryService;
 use SCHF\SDK\Connector\ConnectorInterface;
 use SCHF\SDK\Normalization\NormalizationResult;
@@ -124,5 +125,61 @@ class NormalizationServiceTest extends TestCase
         $this->assertArrayHasKey('profiles', $preview);
         $this->assertArrayHasKey('summary', $preview);
         $this->assertSame(3, $preview['total_profiles']);
+    }
+
+    public function test_firebird_lab_profile_normalizes_all_entities(): void
+    {
+        $registry = new MappingProfileRegistry();
+        foreach (FirebirdLabFinanceProfile::all() as $profile) {
+            $registry->register($profile);
+        }
+
+        $service = new NormalizationService($registry, new DataQualityService(), $this->inventoryServiceMock);
+        $connector = $this->createMock(ConnectorInterface::class);
+        $connector->method('fetchAll')->willReturnCallback(function (string $sql): array {
+            return match (true) {
+                str_contains($sql, '"EMPRESA"') => [
+                    ['ID' => 1, 'NOME' => 'Synthetic Firebird Company', 'CNPJ' => 'FIREBIRD-DOC-001', 'ATIVO' => 'S'],
+                ],
+                str_contains($sql, '"FORNECEDOR"') => [
+                    ['ID' => 1, 'NOME' => 'Synthetic Firebird Supplier A', 'DOCUMENTO' => 'FIRE-SUP-DOC-001', 'EMAIL' => 'supplier.a@firebird-lab.local', 'ATIVO' => 'S'],
+                    ['ID' => 2, 'NOME' => 'Synthetic Firebird Supplier B', 'DOCUMENTO' => 'FIRE-SUP-DOC-002', 'EMAIL' => 'supplier.b@firebird-lab.local', 'ATIVO' => 'S'],
+                ],
+                str_contains($sql, '"CATEGORIA"') => [
+                    ['ID' => 1, 'NOME' => 'Synthetic Firebird Category A', 'TIPO' => 'expense', 'ATIVO' => 'S'],
+                    ['ID' => 2, 'NOME' => 'Synthetic Firebird Category B', 'TIPO' => 'expense', 'ATIVO' => 'S'],
+                ],
+                str_contains($sql, '"CONTA_BANCARIA"') => [
+                    ['ID' => 1, 'NOME' => 'Synthetic Firebird Account A', 'BANCO' => 'FIREBANK', 'AGENCIA' => '0001', 'CONTA' => 'FB-0001', 'ATIVO' => 'S'],
+                    ['ID' => 2, 'NOME' => 'Synthetic Firebird Account B', 'BANCO' => 'FIREBANK', 'AGENCIA' => '0002', 'CONTA' => 'FB-0002', 'ATIVO' => 'S'],
+                ],
+                str_contains($sql, '"TITULO_PAGAR"') => [
+                    ['ID' => 1, 'FORNECEDOR_ID' => 1, 'CATEGORIA_ID' => 1, 'CONTA_ID' => 1, 'DESCRICAO' => 'Synthetic Firebird payable A', 'VALOR' => 100, 'VENCIMENTO' => '2026-09-01', 'STATUS' => 'pending'],
+                    ['ID' => 2, 'FORNECEDOR_ID' => 2, 'CATEGORIA_ID' => 2, 'CONTA_ID' => 2, 'DESCRICAO' => 'Synthetic Firebird payable B', 'VALOR' => 200, 'VENCIMENTO' => '2026-09-02', 'STATUS' => 'pending'],
+                    ['ID' => 3, 'FORNECEDOR_ID' => 1, 'CATEGORIA_ID' => 2, 'CONTA_ID' => 1, 'DESCRICAO' => 'Synthetic Firebird payable C', 'VALOR' => 300, 'VENCIMENTO' => '2026-09-03', 'STATUS' => 'pending'],
+                ],
+                str_contains($sql, '"DESPESA"') => [
+                    ['ID' => 1, 'CATEGORIA_ID' => 1, 'DESCRICAO' => 'Synthetic Firebird expense A', 'VALOR' => 25, 'DATA_DESPESA' => '2026-09-01'],
+                    ['ID' => 2, 'CATEGORIA_ID' => 2, 'DESCRICAO' => 'Synthetic Firebird expense B', 'VALOR' => 75, 'DATA_DESPESA' => '2026-09-02'],
+                ],
+                str_contains($sql, '"USUARIO"') => [
+                    ['ID' => 1, 'NOME' => 'Synthetic Firebird User', 'EMAIL' => 'synthetic.firebird.user@firebird-lab.local', 'ATIVO' => 'S', 'PAPEIS' => 'admin'],
+                ],
+                default => [],
+            };
+        });
+
+        $result = $service->normalize($connector, 'firebird');
+
+        $this->assertCount(1, $result->organizations);
+        $this->assertCount(2, $result->suppliers);
+        $this->assertCount(2, $result->categories);
+        $this->assertCount(2, $result->accounts);
+        $this->assertCount(3, $result->payables);
+        $this->assertCount(2, $result->expenses);
+        $this->assertCount(1, $result->users);
+        $this->assertSame(['admin'], $result->users[0]['roles']);
+        $this->assertTrue($result->users[0]['active']);
+        $this->assertSame(0, $result->summary['total_errors']);
     }
 }

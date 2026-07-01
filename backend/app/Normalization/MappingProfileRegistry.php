@@ -80,6 +80,10 @@ class MappingProfileRegistry
 
         $value = (string) $value;
 
+        if (is_string($rule->transform) && str_starts_with($rule->transform, 'prefix:')) {
+            return substr($rule->transform, strlen('prefix:')) . trim($value);
+        }
+
         return match ($rule->transform) {
             'trim'   => trim($value),
             'upper'  => strtoupper(trim($value)),

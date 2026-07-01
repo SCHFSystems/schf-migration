@@ -9,6 +9,7 @@ use App\Normalization\MappingProfileRegistry;
 use App\Normalization\NormalizationResultSerializer;
 use App\Normalization\NormalizationService;
 use App\Normalization\Profiles\FirebirdFinanceProfile;
+use App\Normalization\Profiles\FirebirdLabFinanceProfile;
 use App\Normalization\Profiles\SyntheticFinanceProfile;
 use App\Services\ConnectorFactory;
 use Illuminate\Http\JsonResponse;
@@ -30,7 +31,7 @@ class NormalizationPreviewController
         abort_if(! $project->source_config, 422, 'Project has no source configuration');
 
         // Register built-in profiles for this source type
-        $this->registerProfiles($project->source_type);
+        $this->registerProfiles($project);
 
         try {
             $connector = $this->connectorFactory->make(
@@ -58,7 +59,7 @@ class NormalizationPreviewController
     {
         abort_if(! $project->source_config, 422, 'Project has no source configuration');
 
-        $this->registerProfiles($project->source_type);
+        $this->registerProfiles($project);
 
         try {
             $connector = $this->connectorFactory->make(
@@ -104,16 +105,20 @@ class NormalizationPreviewController
         return response()->json($bundle);
     }
 
-    private function registerProfiles(string $sourceType): void
+    private function registerProfiles(MigrationProject $project): void
     {
-        if ($sourceType === 'synthetic') {
+        if ($project->source_type === 'synthetic') {
             foreach (SyntheticFinanceProfile::all() as $profile) {
                 $this->registry->register($profile);
             }
         }
 
-        if ($sourceType === 'firebird') {
-            foreach (FirebirdFinanceProfile::all() as $profile) {
+        if ($project->source_type === 'firebird') {
+            $profiles = ($project->source_config['profile'] ?? null) === 'firebird-lab-finance'
+                ? FirebirdLabFinanceProfile::all()
+                : FirebirdFinanceProfile::all();
+
+            foreach ($profiles as $profile) {
                 $this->registry->register($profile);
             }
         }

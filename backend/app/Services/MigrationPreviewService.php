@@ -188,6 +188,14 @@ class MigrationPreviewService
             return false;
         }
 
+        if (($sourceConfig['quality_gates']['block_orphans'] ?? false) === true) {
+            foreach ($result->issues as $issue) {
+                if ($issue->type === 'orphan') {
+                    return false;
+                }
+            }
+        }
+
         if (empty($sourceConfig)) {
             return false;
         }
