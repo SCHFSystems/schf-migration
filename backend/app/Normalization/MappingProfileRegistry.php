@@ -86,6 +86,8 @@ class MappingProfileRegistry
             'lower'  => strtolower(trim($value)),
             'number' => is_numeric($value) ? (float) $value : $value,
             'date'   => $this->normalizeDate($value),
+            'boolean' => $this->normalizeBoolean($value),
+            'split'  => $this->normalizeSplit($value),
             default  => $value,
         };
     }
@@ -101,5 +103,19 @@ class MappingProfileRegistry
             }
         }
         return $value;
+    }
+
+    private function normalizeBoolean(string $value): bool
+    {
+        return in_array(strtoupper(trim($value)), ['S', '1', 'Y', 'YES', 'TRUE'], true);
+    }
+
+    private function normalizeSplit(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+        return array_map('trim', explode('|', $value));
     }
 }

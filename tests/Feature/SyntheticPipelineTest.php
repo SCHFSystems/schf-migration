@@ -113,4 +113,87 @@ class SyntheticPipelineTest extends TestCase
         ])->assertStatus(422)
             ->assertJsonPath('error', 'Real connectors are disabled in synthetic-only mode');
     }
+
+    public function test_e2e_clean_scenario_includes_users(): void
+    {
+        $project = $this->postJson('/api/projects', [
+            'name' => 'E2E Clean Pipeline',
+            'source_type' => 'synthetic',
+            'source_config' => [
+                'scenario' => 'e2e-clean',
+                'organization' => ['external_id' => 'ORG-E2E-S11', 'name' => 'Sprint 11 E2E Org'],
+            ],
+        ])->assertCreated()->json();
+
+        $projectId = $project['id'];
+
+        $this->postJson("/api/projects/{$projectId}/inventory/generate")
+            ->assertOk()
+            ->assertJsonPath('summary.total_tables', 6);
+
+        $this->getJson("/api/projects/{$projectId}/inventory")
+            ->assertOk()
+            ->assertJsonPath('summary.total_rows', 12);
+
+        $this->postJson("/api/projects/{$projectId}/normalization/run")
+            ->assertOk()
+            ->assertJsonPath('summary.total_suppliers', 2)
+            ->assertJsonPath('summary.total_payables', 3)
+            ->assertJsonPath('summary.total_accounts', 2)
+            ->assertJsonPath('summary.total_expenses', 2)
+            ->assertJsonPath('summary.total_users', 1);
+
+        $this->getJson("/api/projects/{$projectId}/normalization")
+            ->assertOk()
+            ->assertJsonPath('summary.total_categories', 2);
+
+        $this->postJson("/api/projects/{$projectId}/quality/run")
+            ->assertOk()
+            ->assertJsonPath('status', 'passed');
+
+        $this->getJson("/api/projects/{$projectId}/quality")
+            ->assertOk()
+            ->assertJsonPath('summary.total_errors', 0);
+
+        $this->postJson("/api/projects/{$projectId}/preview/generate")
+            ->assertOk()
+            ->assertJsonPath('status', 'ready')
+            ->assertJsonPath('ready_for_bundle', true);
+
+        $bundlePreview = $this->getJson("/api/projects/{$projectId}/bundle/preview")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('source.type', 'synthetic')
+            ->json();
+
+        $usersPreview = array_values(array_filter(
+            $bundlePreview['files'],
+            fn (array $file): bool => $file['path'] === 'users.json'
+        ));
+        $this->assertCount(1, $usersPreview, 'users.json must be present in bundle');
+        $this->assertSame(1, $usersPreview[0]['records']);
+
+        $paymentPreview = array_values(array_filter(
+            $bundlePreview['files'],
+            fn (array $file): bool => $file['path'] === 'payments.json'
+        ));
+        $this->assertCount(1, $paymentPreview);
+        $this->assertSame(3, $paymentPreview[0]['records']);
+
+        $export = $this->postJson("/api/projects/{$projectId}/bundle/export")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->json();
+
+        $this->assertStringEndsWith('.schf', $export['bundle_path']);
+        $this->assertFileExists($export['bundle_path']);
+
+        $validator = new BundleValidator();
+        $validation = $validator->validate($export['bundle_path']);
+        $this->assertTrue($validation['valid'], implode(', ', $validation['errors']));
+        $this->assertSame(3, $validator->getManifest()?->getFileByPath('payments.json')['records']);
+        $this->assertSame(1, $validator->getManifest()?->getFileByPath('users.json')['records']);
+
+        @unlink($export['bundle_path']);
+    }
 }

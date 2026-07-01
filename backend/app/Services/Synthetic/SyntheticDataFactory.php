@@ -11,6 +11,10 @@ class SyntheticDataFactory
      */
     public function make(string $scenario = 'clean'): array
     {
+        if ($scenario === 'e2e-clean') {
+            return $this->e2eClean();
+        }
+
         $data = $this->clean();
 
         if ($scenario === 'warnings') {
@@ -25,6 +29,82 @@ class SyntheticDataFactory
         }
 
         return $data;
+    }
+
+    /**
+     * @return array<string, list<array<string, mixed>>>
+     */
+    public function availableScenarios(): array
+    {
+        return ['clean', 'warnings', 'blocked', 'e2e-clean'];
+    }
+
+    /**
+     * Synthetic scenario for Sprint 11 E2E: 1 organization, 2 suppliers,
+     * 2 categories, 2 bank accounts, 3 payments, 2 expenses, 1 user.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function e2eClean(): array
+    {
+        return [
+            'FORNECEDOR' => [
+                [
+                    'COD_FORNECEDOR' => 'SUP-S11-001',
+                    'NOME_FANTASIA' => 'Synthetic Supplier A',
+                    'RAZAO_SOCIAL' => 'Synthetic Supplier A Ltd',
+                    'CNPJ_CPF' => 'S11-DOC-001',
+                    'ATIVO' => 'S',
+                ],
+                [
+                    'COD_FORNECEDOR' => 'SUP-S11-002',
+                    'NOME_FANTASIA' => 'Synthetic Supplier B',
+                    'RAZAO_SOCIAL' => 'Synthetic Supplier B Ltd',
+                    'CNPJ_CPF' => 'S11-DOC-002',
+                    'ATIVO' => 'S',
+                ],
+            ],
+            'CATEGORIA' => [
+                ['COD_CATEGORIA' => 'CAT-S11-001', 'DESCRICAO' => 'Synthetic Category A', 'TIPO' => 'expense'],
+                ['COD_CATEGORIA' => 'CAT-S11-002', 'DESCRICAO' => 'Synthetic Category B', 'TIPO' => 'expense'],
+            ],
+            'CONTAS_RECEBER_PAGAR' => [
+                ['COD_LANCAMENTO' => 'PAY-S11-001', 'COD_FORNECEDOR' => 'SUP-S11-001', 'COD_CATEGORIA' => 'CAT-S11-001', 'DESCRICAO' => 'Synthetic payable invoice A', 'VALOR' => 100.00, 'DATA_VENCIMENTO' => '2026-08-01', 'DATA_PAGAMENTO' => null],
+                ['COD_LANCAMENTO' => 'PAY-S11-002', 'COD_FORNECEDOR' => 'SUP-S11-002', 'COD_CATEGORIA' => 'CAT-S11-002', 'DESCRICAO' => 'Synthetic payable invoice B', 'VALOR' => 200.00, 'DATA_VENCIMENTO' => '2026-08-02', 'DATA_PAGAMENTO' => null],
+                ['COD_LANCAMENTO' => 'PAY-S11-003', 'COD_FORNECEDOR' => 'SUP-S11-001', 'COD_CATEGORIA' => 'CAT-S11-002', 'DESCRICAO' => 'Synthetic payable invoice C', 'VALOR' => 300.00, 'DATA_VENCIMENTO' => '2026-08-03', 'DATA_PAGAMENTO' => null],
+            ],
+            'CONTAS_BANCARIAS' => [
+                [
+                    'COD_CONTA' => 'ACC-S11-001',
+                    'NOME' => 'Synthetic Account A',
+                    'BANCO' => 'SYNBANK',
+                    'AGENCIA' => '0001',
+                    'CONTA' => 'S11-0001',
+                    'SALDO_INICIAL' => 1000.00,
+                ],
+                [
+                    'COD_CONTA' => 'ACC-S11-002',
+                    'NOME' => 'Synthetic Account B',
+                    'BANCO' => 'SYNBANK',
+                    'AGENCIA' => '0002',
+                    'CONTA' => 'S11-0002',
+                    'SALDO_INICIAL' => 2000.00,
+                ],
+            ],
+            'DESPESAS' => [
+                ['COD_DESPESA' => 'EXP-S11-001', 'COD_CATEGORIA' => 'CAT-S11-001', 'DESCRICAO' => 'Synthetic expense A', 'VALOR' => 25.00, 'DATA' => '2026-08-01'],
+                ['COD_DESPESA' => 'EXP-S11-002', 'COD_CATEGORIA' => 'CAT-S11-002', 'DESCRICAO' => 'Synthetic expense B', 'VALOR' => 75.00, 'DATA' => '2026-08-02'],
+            ],
+            'USUARIO' => [
+                [
+                    'COD_USUARIO' => 'USR-S11-001',
+                    'NOME' => 'Synthetic User A',
+                    'EMAIL' => 'synthetic.user.a@sprint11.local',
+                    'ATIVO' => 'S',
+                    'PAPEIS' => 'admin',
+                ],
+            ],
+        ];
     }
 
     /**

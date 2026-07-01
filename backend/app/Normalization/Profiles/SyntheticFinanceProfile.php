@@ -11,6 +11,7 @@ use SCHF\SDK\Normalization\NormalizedCategory;
 use SCHF\SDK\Normalization\NormalizedExpense;
 use SCHF\SDK\Normalization\NormalizedPayable;
 use SCHF\SDK\Normalization\NormalizedSupplier;
+use SCHF\SDK\Normalization\NormalizedUser;
 
 class SyntheticFinanceProfile
 {
@@ -25,6 +26,7 @@ class SyntheticFinanceProfile
             self::categoryProfile(),
             self::accountProfile(),
             self::expenseProfile(),
+            self::userProfile(),
         ];
     }
 
@@ -125,6 +127,26 @@ class SyntheticFinanceProfile
                 new MappingRule('DESCRICAO', 'description', 'trim'),
                 new MappingRule('VALOR', 'amount', 'number', required: true),
                 new MappingRule('DATA', 'date', 'date', required: true),
+            ],
+        );
+    }
+
+    public static function userProfile(): MappingProfile
+    {
+        return new MappingProfile(
+            source_type: 'synthetic',
+            profile: 'synthetic-users',
+            version: '1.0.0',
+            source_table: 'USUARIO',
+            target_class: NormalizedUser::class,
+            target_entity: 'users',
+            description: 'Maps synthetic users (Sprint 11 E2E)',
+            rules: [
+                new MappingRule('COD_USUARIO', 'external_id', 'trim', required: true),
+                new MappingRule('NOME', 'name', 'trim', required: true),
+                new MappingRule('EMAIL', 'email', 'trim', required: true),
+                new MappingRule('PAPEIS', 'roles', 'split'),
+                new MappingRule('ATIVO', 'active', 'boolean'),
             ],
         );
     }

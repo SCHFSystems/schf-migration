@@ -85,6 +85,10 @@ class NormalizationService
         $qualityIssues = $this->qualityService->checkAll($results);
         $issues = array_merge($issues, $qualityIssues);
 
+        if ($organization) {
+            $results['organizations'] = [$organization];
+        }
+
         // Build summary
         $summary = $this->buildSummary($results, $issues);
 
@@ -94,13 +98,14 @@ class NormalizationService
                 name:        $organization['name'] ?? 'Default Organization',
                 legal_name:  $organization['legal_name'] ?? null,
             )] : [],
-            suppliers:  $results['suppliers'] ?? [],
-            accounts:   $results['accounts'] ?? [],
-            payables:   $results['payables'] ?? [],
-            categories: $results['categories'] ?? [],
-            expenses:   $results['expenses'] ?? [],
-            issues:     $issues,
-            summary:    $summary,
+            users:       $results['users'] ?? [],
+            suppliers:   $results['suppliers'] ?? [],
+            accounts:    $results['accounts'] ?? [],
+            payables:    $results['payables'] ?? [],
+            categories:  $results['categories'] ?? [],
+            expenses:    $results['expenses'] ?? [],
+            issues:      $issues,
+            summary:     $summary,
         );
     }
 
@@ -159,6 +164,7 @@ class NormalizationService
 
         return [
             'total_organizations' => count($results['organizations'] ?? []),
+            'total_users'         => count($results['users'] ?? []),
             'total_suppliers'     => count($results['suppliers'] ?? []),
             'total_categories'    => count($results['categories'] ?? []),
             'total_accounts'      => count($results['accounts'] ?? []),
